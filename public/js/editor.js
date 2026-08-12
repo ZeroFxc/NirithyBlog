@@ -78,7 +78,8 @@
       var data = await MD3.api("/posts/" + encodeURIComponent(currentSlug));
       var post = data.post;
       var user = Auth.getUser();
-      if (post && user && post.authorId !== user.id) {
+      // Admin can edit any post
+      if (post && user && post.authorId !== user.id && user.role !== "admin") {
         MD3.showSnackbar(t("msg.error_prefix") + "You can only edit your own posts");
         setTimeout(function () {
           window.location.href = "/";

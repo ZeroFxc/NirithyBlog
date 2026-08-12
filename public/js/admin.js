@@ -1,6 +1,7 @@
 /* ============================================================
    NirithyBlog - Admin Dashboard
-   Stats, user management, post management, comment management
+   Stats (with Chart.js trend), user management (search + batch),
+   post management (edit + batch delete), comment management
    ============================================================ */
 
 (function () {
@@ -8,6 +9,7 @@
 
   var currentTab = "stats";
   var isAdmin = false;
+  var trendChart = null;
 
   function t(key) {
     if (window.I18N) return I18N.t(key);
@@ -81,6 +83,11 @@
 
   function switchTab(tab) {
     currentTab = tab;
+    // Destroy chart when leaving stats tab
+    if (tab !== "stats" && trendChart) {
+      trendChart.destroy();
+      trendChart = null;
+    }
     var tabs = document.querySelectorAll(".admin-tab");
     tabs.forEach(function (t) {
       t.classList.remove("admin-tab--active");
@@ -141,28 +148,150 @@
         '<span class="stat-card__label">' + t("admin.stat_checkin_today") + "</span>" +
         "</div>" +
         "</div>" +
+        "</div>" +
+        '<div class="admin-chart-section">' +
+        '<h3 class="admin-chart-title">' + t("admin.trend_title") + "</h3>" +
+        '<div class="admin-chart-container">' +
+        '<canvas id="trendChart"></canvas>' +
+        "</div>" +
         "</div>";
 
       content.innerHTML = html;
+
+      // Load trend data and draw chart
+      loadTrendChart();
     } catch (e) {
       content.innerHTML = '<p class="empty-state__desc">' + (e.message || "Error") + "</p>";
     }
   }
 
+  async function loadTrendChart() {
+    try {
+      var trend = await MD3.api("/admin/stats/trend");
+      var ctx = document.getElementById("trendChart");
+      if (!ctx || typeof Chart === "undefined") return;
+
+      var labels = trend.dates || [];
+      var isZh = I18N.getLang() === "zh-CN";
+
+      var datasetUsers = {
+        label: t("admin.trend_new_users"),
+        data: trend.newUsers || [],
+        borderColor: "#2196F3",
+        backgroundColor: "rgba(33,150,243,0.1)",
+        tension: 0.3,
+        fill: true,
+      };
+
+      var datasetPosts = {
+        label: t("admin.trend_new_posts"),
+        data: trend.newPosts || [],
+        borderColor: "#4CAF50",
+        backgroundColor: "rgba(76,175,80,0.1)",
+        tension: 0.3,
+        fill: true,
+      };
+
+      var datasetComments = {
+        label: t("admin.trend_new_comments"),
+        data: trend.newComments || [],
+        borderColor: "#FF9800",
+        backgroundColor: "rgba(255,152,0,0.1)",
+        tension: 0.3,
+        fill: true,
+      };
+
+      // Dark theme detection
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      var gridColor = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
+      var textColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)";
+
+      trendChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [datasetUsers, datasetPosts, datasetComments],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: "top",
+              labels: {
+                color: textColor,
+                usePointStyle: true,
+                padding: 16,
+              },
+            },
+            tooltip: {
+              mode: "index",
+              intersect: false,
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: gridColor },
+              ticks: { color: textColor, maxRotation: 45 },
+            },
+            y: {
+              grid: { color: gridColor },
+              ticks: { color: textColor },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    } catch (e) {
+      // Chart loading failed - not critical
+      console.error("Trend chart error:", e);
+    }
+  }
+
   // ===== Users =====
-  async function loadUsers() {
+  async function loadUsers(searchQuery) {
     var content = document.getElementById("adminTabContent");
     content.innerHTML =
       '<div class="loading-container"><div class="progress-circular"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"></circle></svg></div></div>';
 
     try {
-      var data = await MD3.api("/admin/users");
+      var endpoint = "/admin/users";
+      if (searchQuery) {
+        endpoint += "?q=" + encodeURIComponent(searchQuery);
+      }
+      var data = await MD3.api(endpoint);
       var users = data.users || [];
 
+      // Search bar + batch action bar
       var html =
+        '<div class="admin-toolbar">' +
+        '<div class="admin-search-bar">' +
+        '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg>' +
+        '<input type="text" class="admin-search-input" id="userSearchInput" placeholder="' + t("admin.search_users") + '" value="' + (searchQuery || "") + '">' +
+        '<button class="btn-filled admin-search-btn" id="userSearchBtn">' + t("admin.search") + "</button>" +
+        "</div>" +
+        '<div class="admin-batch-actions">' +
+        '<button class="btn-text admin-batch-btn admin-batch-btn--ban" id="batchBanBtn">' + t("admin.batch_ban") + "</button>" +
+        '<button class="btn-text admin-batch-btn admin-batch-btn--unban" id="batchUnbanBtn">' + t("admin.batch_unban") + "</button>" +
+        "</div>" +
+        "</div>";
+
+      if (users.length === 0) {
+        html += '<div class="empty-state"><p class="empty-state__desc">' + t("admin.no_comments") + "</p></div>";
+        content.innerHTML = html;
+        bindUserSearch();
+        return;
+      }
+
+      html +=
         '<div class="admin-table-wrap">' +
         '<table class="admin-table">' +
         "<thead><tr>" +
+        '<th style="width:40px;"><input type="checkbox" id="userSelectAll"></th>' +
         "<th>" + t("admin.user_username") + "</th>" +
         "<th>" + t("admin.user_level") + "</th>" +
         "<th>" + t("admin.user_points") + "</th>" +
@@ -176,6 +305,7 @@
         var levelColor = Auth.getLevelColor(user.level);
         html +=
           "<tr>" +
+          '<td><input type="checkbox" class="user-checkbox" data-user-id="' + user.id + '" data-user-name="' + MD3.escapeHtml(user.username) + '" data-banned="' + (user.banned ? "1" : "0") + '"></td>' +
           '<td><a href="/profile.html?u=' + encodeURIComponent(user.username) + '" class="admin-table__user-link">' +
           '<span class="post-author-avatar" style="background:' + levelColor + ';">' +
           MD3.escapeHtml(user.username.charAt(0).toUpperCase()) +
@@ -207,6 +337,28 @@
       html += "</tbody></table></div>";
       content.innerHTML = html;
 
+      // Bind search
+      bindUserSearch();
+
+      // Bind select all
+      var selectAll = document.getElementById("userSelectAll");
+      if (selectAll) {
+        selectAll.addEventListener("change", function () {
+          var checkboxes = content.querySelectorAll(".user-checkbox");
+          checkboxes.forEach(function (cb) { cb.checked = selectAll.checked; });
+        });
+      }
+
+      // Bind batch actions
+      var batchBanBtn = document.getElementById("batchBanBtn");
+      if (batchBanBtn) {
+        batchBanBtn.addEventListener("click", function () { handleBatchUsers(true); });
+      }
+      var batchUnbanBtn = document.getElementById("batchUnbanBtn");
+      if (batchUnbanBtn) {
+        batchUnbanBtn.addEventListener("click", function () { handleBatchUsers(false); });
+      }
+
       // Bind action buttons
       var btns = content.querySelectorAll(".admin-action-btn");
       btns.forEach(function (btn) {
@@ -220,6 +372,59 @@
       });
     } catch (e) {
       content.innerHTML = '<p class="empty-state__desc">' + (e.message || "Error") + "</p>";
+    }
+  }
+
+  function bindUserSearch() {
+    var searchInput = document.getElementById("userSearchInput");
+    var searchBtn = document.getElementById("userSearchBtn");
+    if (searchBtn) {
+      searchBtn.addEventListener("click", function () {
+        var q = searchInput.value.trim();
+        loadUsers(q || undefined);
+      });
+    }
+    if (searchInput) {
+      searchInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          var q = searchInput.value.trim();
+          loadUsers(q || undefined);
+        }
+      });
+    }
+  }
+
+  async function handleBatchUsers(ban) {
+    var content = document.getElementById("adminTabContent");
+    var checked = content.querySelectorAll(".user-checkbox:checked");
+    if (checked.length === 0) {
+      MD3.showSnackbar(t("admin.no_selection"));
+      return;
+    }
+
+    var userIds = [];
+    var userNames = [];
+    checked.forEach(function (cb) {
+      userIds.push(cb.getAttribute("data-user-id"));
+      userNames.push(cb.getAttribute("data-user-name"));
+    });
+
+    var action = ban ? t("admin.batch_ban") : t("admin.batch_unban");
+    var confirmed = await MD3.showConfirm(
+      ban ? t("admin.confirm_batch_ban") : t("admin.confirm_batch_unban"),
+      userNames.join(", ")
+    );
+    if (!confirmed) return;
+
+    try {
+      await MD3.api("/admin/users/batch", {
+        method: "POST",
+        body: { userIds: userIds, banned: ban },
+      });
+      MD3.showSnackbar(ban ? t("admin.batch_banned") : t("admin.batch_unbanned"));
+      loadUsers();
+    } catch (e) {
+      MD3.showSnackbar(e.message || "Error");
     }
   }
 
@@ -270,10 +475,19 @@
         return;
       }
 
+      // Batch action bar
       var html =
+        '<div class="admin-toolbar">' +
+        '<div class="admin-batch-actions">' +
+        '<button class="btn-text admin-batch-btn admin-delete-btn" id="batchDeletePostsBtn">' + t("admin.batch_delete") + "</button>" +
+        "</div>" +
+        "</div>";
+
+      html +=
         '<div class="admin-table-wrap">' +
         '<table class="admin-table">' +
         "<thead><tr>" +
+        '<th style="width:40px;"><input type="checkbox" id="postSelectAll"></th>' +
         "<th>" + t("admin.post_title") + "</th>" +
         "<th>" + t("admin.post_author") + "</th>" +
         "<th>" + t("admin.post_category") + "</th>" +
@@ -282,16 +496,23 @@
         "</tr></thead><tbody>";
 
       posts.forEach(function (post) {
-        var levelColor = "#9E9E9E";
         html +=
           "<tr>" +
+          '<td><input type="checkbox" class="post-checkbox" data-slug="' + encodeURIComponent(post.slug) + '" data-title="' + MD3.escapeHtml(post.title) + '"></td>' +
           '<td><a href="/post.html?slug=' + encodeURIComponent(post.slug) + '" class="admin-table__user-link">' +
           MD3.escapeHtml(post.title) +
           "</a></td>" +
-          "<td>" + MD3.escapeHtml(post.authorName || "-") + "</td>" +
-          "<td>" + MD3.escapeHtml(post.category || "-") + "</td>" +
+          '<td><a href="/profile.html?u=' + encodeURIComponent(post.authorName || "") + '" class="admin-table__user-link">' +
+          MD3.escapeHtml(post.authorName || "-") +
+          "</a></td>" +
+          '<td><a href="/category?c=' + encodeURIComponent(post.category || "") + '" class="admin-tag-link">' +
+          MD3.escapeHtml(post.category || "-") +
+          "</a></td>" +
           "<td>" + MD3.formatDate(new Date(post.createdAt)) + "</td>" +
-          '<td>' +
+          '<td class="admin-table__actions">' +
+          '<a href="/editor.html?slug=' + encodeURIComponent(post.slug) + '" class="btn-text admin-action-btn admin-edit-btn">' +
+          t("admin.edit") +
+          "</a>" +
           '<button class="btn-text admin-action-btn admin-delete-btn" data-action="delete-post" data-slug="' + encodeURIComponent(post.slug) + '" data-title="' + MD3.escapeHtml(post.title) + '">' +
           t("admin.delete") +
           "</button>" +
@@ -302,14 +523,30 @@
       html += "</tbody></table></div>";
       content.innerHTML = html;
 
-      var delBtns = content.querySelectorAll(".admin-delete-btn");
+      // Bind select all
+      var selectAll = document.getElementById("postSelectAll");
+      if (selectAll) {
+        selectAll.addEventListener("change", function () {
+          var checkboxes = content.querySelectorAll(".post-checkbox");
+          checkboxes.forEach(function (cb) { cb.checked = selectAll.checked; });
+        });
+      }
+
+      // Bind batch delete
+      var batchDelBtn = document.getElementById("batchDeletePostsBtn");
+      if (batchDelBtn) {
+        batchDelBtn.addEventListener("click", handleBatchDeletePosts);
+      }
+
+      // Bind individual delete buttons
+      var delBtns = content.querySelectorAll(".admin-delete-btn[data-action='delete-post']");
       delBtns.forEach(function (btn) {
         btn.addEventListener("click", async function () {
           var slug = btn.getAttribute("data-slug");
           var title = btn.getAttribute("data-title");
           var confirmed = await MD3.showConfirm(
             t("admin.confirm_delete_post"),
-            title + " — " + t("admin.confirm_delete_post_desc")
+            title + " - " + t("admin.confirm_delete_post_desc")
           );
           if (confirmed) {
             deletePostAdmin(slug);
@@ -318,6 +555,39 @@
       });
     } catch (e) {
       content.innerHTML = '<p class="empty-state__desc">' + (e.message || "Error") + "</p>";
+    }
+  }
+
+  async function handleBatchDeletePosts() {
+    var content = document.getElementById("adminTabContent");
+    var checked = content.querySelectorAll(".post-checkbox:checked");
+    if (checked.length === 0) {
+      MD3.showSnackbar(t("admin.no_selection"));
+      return;
+    }
+
+    var slugs = [];
+    var titles = [];
+    checked.forEach(function (cb) {
+      slugs.push(cb.getAttribute("data-slug"));
+      titles.push(cb.getAttribute("data-title"));
+    });
+
+    var confirmed = await MD3.showConfirm(
+      t("admin.confirm_batch_delete_posts"),
+      titles.join(", ") + " - " + t("admin.confirm_batch_delete_posts_desc")
+    );
+    if (!confirmed) return;
+
+    try {
+      await MD3.api("/admin/posts/batch-delete", {
+        method: "POST",
+        body: { slugs: slugs },
+      });
+      MD3.showSnackbar(t("admin.batch_deleted"));
+      loadAllPosts();
+    } catch (e) {
+      MD3.showSnackbar(e.message || "Error");
     }
   }
 
@@ -364,10 +634,12 @@
           "<tr>" +
           "<td>" + MD3.escapeHtml(comment.content.substring(0, 60)) + (comment.content.length > 60 ? "..." : "") + "</td>" +
           "<td>" +
+          '<a href="/profile.html?u=' + encodeURIComponent(comment.username) + '" class="admin-table__user-link">' +
           '<span class="comment-avatar" style="background:' + levelColor + ';display:inline-flex;width:20px;height:20px;font-size:10px;">' +
           MD3.escapeHtml(comment.username.charAt(0).toUpperCase()) +
           "</span> " +
           MD3.escapeHtml(comment.username) +
+          "</a>" +
           "</td>" +
           '<td><a href="/post.html?slug=' + encodeURIComponent(comment.postSlug) + '" class="admin-table__user-link">' +
           MD3.escapeHtml(comment.postTitle || comment.postSlug) +

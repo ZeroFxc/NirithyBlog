@@ -18,6 +18,7 @@ interface Post {
   updatedAt: string;
   coverImage?: string;
   likeCount?: number;
+  viewCount?: number;
 }
 
 interface PostSummary {
@@ -32,6 +33,7 @@ interface PostSummary {
   updatedAt: string;
   coverImage?: string;
   likeCount?: number;
+  viewCount?: number;
 }
 
 interface User {
@@ -111,6 +113,7 @@ interface Env {
   JWT_SECRET: string;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
+  RATE_LIMITER: RateLimit;
 }
 
 // ===== Constants =====
@@ -478,6 +481,7 @@ async function listPosts(env: Env): Promise<PostSummary[]> {
         updatedAt: post.updatedAt,
         coverImage: post.coverImage || undefined,
         likeCount: post.likeCount || 0,
+        viewCount: post.viewCount || 0,
       });
     }
     cursor = listed.truncated ? listed.cursor : undefined;
@@ -1245,6 +1249,11 @@ async function handleGetPost(
   if (!post) {
     return json({ error: "Post not found", slug }, 404);
   }
+
+  // Increment view count (fire-and-forget)
+  post.viewCount = (post.viewCount || 0) + 1;
+  await savePost(post, env);
+
   return json({ post });
 }
 
@@ -1292,6 +1301,7 @@ async function handleCreatePost(
     updatedAt: now,
     coverImage: body.coverImage || undefined,
     likeCount: 0,
+    viewCount: 0,
   };
 
   await savePost(post, env);
@@ -1886,6 +1896,220 @@ async function handleFollowingFeed(
   return json({ posts: feed, total: feed.length });
 }
 
+// ===== XSS Sanitize =====
+
+function sanitizeHtml(html: string): string {
+  // Remove <script> tags and their content
+  let s = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  // Remove event handler attributes (onclick, onload, onerror, etc.)
+  s = s.replace(/\son\w+\s*=\s*"[^"]*"/gi, "");
+  s = s.replace(/\son\w+\s*=\s*'[^']*'/gi, "");
+  s = s.replace(/\son\w+\s*=\s*[^\s>]+/gi, "");
+  // Remove javascript: URLs
+  s = s.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"');
+  s = s.replace(/src\s*=\s*"javascript:[^"]*"/gi, "");
+  // Remove <iframe>, <object>, <embed> tags
+  s = s.replace(/<\/?(iframe|object|embed|applet)\b[^>]*>/gi, "");
+  // Remove style attributes containing expressions
+  s = s.replace(/style\s*=\s*"[^"]*expression[^"]*"/gi, "");
+  return s;
+}
+
+// ===== Posts by Tag / Category =====
+
+async function handlePostsByTag(tag: string, env: Env): Promise<Response> {
+  const allPosts = await listPosts(env);
+  const filtered = allPosts.filter((p) =>
+    p.tags.some((t) => t.toLowerCase() === tag.toLowerCase())
+  );
+  return json({ posts: filtered, total: filtered.length, tag });
+}
+
+async function handlePostsByCategory(
+  category: string,
+  env: Env
+): Promise<Response> {
+  const allPosts = await listPosts(env);
+  const filtered = allPosts.filter(
+    (p) => (p.category || "Uncategorized").toLowerCase() === category.toLowerCase()
+  );
+  return json({ posts: filtered, total: filtered.length, category });
+}
+
+// ===== Admin: Search Users =====
+
+async function handleAdminSearchUsers(
+  query: string,
+  env: Env
+): Promise<Response> {
+  const listed = await env.BUCKET.list({ prefix: USERS_PREFIX });
+  const users: UserPublic[] = [];
+  const q = query.toLowerCase();
+
+  for (const item of listed.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const user = (await obj.json()) as User;
+    if (
+      user.username.toLowerCase().includes(q) ||
+      (user.githubUsername || "").toLowerCase().includes(q) ||
+      (user.bio || "").toLowerCase().includes(q)
+    ) {
+      users.push(await toUserPublicWithCount(user, env));
+    }
+  }
+
+  users.sort((a, b) => b.points - a.points);
+  return json({ users, total: users.length, query });
+}
+
+// ===== Admin: Batch Operations =====
+
+async function handleAdminBatchDeletePosts(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  let body: { slugs?: string[] };
+  try {
+    body = (await request.json()) as { slugs?: string[] };
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!body.slugs || !Array.isArray(body.slugs)) {
+    return json({ error: "slugs array is required" }, 400);
+  }
+
+  let deleted = 0;
+  for (const slug of body.slugs) {
+    const existing = await getPost(slug, env);
+    if (existing) {
+      await deletePost(slug, env);
+      deleted++;
+    }
+  }
+
+  return json({ success: true, deleted, total: body.slugs.length });
+}
+
+async function handleAdminBatchUpdateUsers(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  let body: { userIds?: string[]; banned?: boolean };
+  try {
+    body = (await request.json()) as { userIds?: string[]; banned?: boolean };
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (!body.userIds || !Array.isArray(body.userIds)) {
+    return json({ error: "userIds array is required" }, 400);
+  }
+
+  let updated = 0;
+  for (const userId of body.userIds) {
+    const obj = await env.BUCKET.get(`${USERS_PREFIX}${userId}.json`);
+    if (!obj) continue;
+    const user = (await obj.json()) as User;
+    if (body.banned !== undefined) {
+      user.banned = body.banned;
+    }
+    await saveUser(user, env);
+    updated++;
+  }
+
+  return json({ success: true, updated, total: body.userIds.length });
+}
+
+// ===== Admin: Stats with Trend =====
+
+async function handleAdminStatsTrend(env: Env): Promise<Response> {
+  const listedUsers = await env.BUCKET.list({ prefix: USERS_PREFIX });
+  const listedPosts = await env.BUCKET.list({ prefix: POSTS_PREFIX });
+  const listedComments = await env.BUCKET.list({ prefix: COMMENTS_PREFIX });
+
+  // Collect daily counts for last 30 days
+  const days: string[] = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split("T")[0]);
+  }
+
+  const userTrend: Record<string, number> = {};
+  const postTrend: Record<string, number> = {};
+  const commentTrend: Record<string, number> = {};
+  days.forEach((d) => {
+    userTrend[d] = 0;
+    postTrend[d] = 0;
+    commentTrend[d] = 0;
+  });
+
+  let totalUsers = 0;
+  let totalPosts = 0;
+  let totalComments = 0;
+
+  for (const item of listedUsers.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const user = (await obj.json()) as User;
+    totalUsers++;
+    const day = user.createdAt.split("T")[0];
+    if (day in userTrend) userTrend[day]++;
+  }
+
+  for (const item of listedPosts.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const post = (await obj.json()) as Post;
+    totalPosts++;
+    const day = post.createdAt.split("T")[0];
+    if (day in postTrend) postTrend[day]++;
+  }
+
+  for (const item of listedComments.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const comment = (await obj.json()) as Comment;
+    totalComments++;
+    const day = comment.createdAt.split("T")[0];
+    if (day in commentTrend) commentTrend[day]++;
+  }
+
+  // Cumulative arrays
+  let cumUsers = 0;
+  let cumPosts = 0;
+  let cumComments = 0;
+  const trend = days.map((d) => {
+    cumUsers += userTrend[d];
+    cumPosts += postTrend[d];
+    cumComments += commentTrend[d];
+    return {
+      date: d,
+      newUsers: userTrend[d],
+      newPosts: postTrend[d],
+      newComments: commentTrend[d],
+      cumulativeUsers: cumUsers,
+      cumulativePosts: cumPosts,
+      cumulativeComments: cumComments,
+    };
+  });
+
+  return json({
+    totalUsers,
+    totalPosts,
+    totalComments,
+    trend,
+    days: days.length,
+  });
+}
+
 // ===== RSS Feed =====
 
 async function handleRSS(env: Env): Promise<Response> {
@@ -1953,6 +2177,20 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
 
   if (path === "/categories" && method === "GET") {
     return handleListCategories(env);
+  }
+
+  // Posts by tag
+  const tagMatch = path.match(/^\/tags\/([^/]+)$/);
+  if (tagMatch && method === "GET") {
+    const tag = decodeURIComponent(tagMatch[1]);
+    return handlePostsByTag(tag, env);
+  }
+
+  // Posts by category
+  const catMatch = path.match(/^\/categories\/([^/]+)$/);
+  if (catMatch && method === "GET") {
+    const category = decodeURIComponent(catMatch[1]);
+    return handlePostsByCategory(category, env);
   }
 
   // Posts list (public, paginated)
@@ -2167,10 +2405,36 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
     return handleAdminStats(env);
   }
 
+  // Admin stats with trend (for charts)
+  if (path === "/admin/stats/trend" && method === "GET") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    return handleAdminStatsTrend(env);
+  }
+
   if (path === "/admin/users" && method === "GET") {
     const admin = await requireAdmin(request, env);
     if (!admin) return adminAuthFail();
+    // Check for search query
+    const searchQuery = url.searchParams.get("q");
+    if (searchQuery) {
+      return handleAdminSearchUsers(searchQuery, env);
+    }
     return handleAdminListUsers(env);
+  }
+
+  // Admin: batch delete posts
+  if (path === "/admin/posts/batch-delete" && method === "POST") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    return handleAdminBatchDeletePosts(request, env);
+  }
+
+  // Admin: batch update users (ban/unban)
+  if (path === "/admin/users/batch" && method === "POST") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    return handleAdminBatchUpdateUsers(request, env);
   }
 
   const adminUserMatch = path.match(/^\/admin\/users\/([^/]+)$/);
@@ -2299,7 +2563,7 @@ async function handleSSRPost(
   );
 
   // Inject SSR content into postContainer for crawlers
-  const plainContent = escapeHtmlAttr(stripMarkdown(post.content || "").substring(0, 5000));
+  const plainContent = sanitizeHtml(escapeHtmlAttr(stripMarkdown(post.content || "").substring(0, 5000)));
   const ssrContent =
     `<div id="ssr-content" style="display:none" data-reading-time="${readingTime}">` +
     `<h1>${escapeHtmlAttr(post.title)}</h1>` +
@@ -2372,9 +2636,18 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // API routes
+    // API routes - with rate limiting
     if (path.startsWith("/api/")) {
       try {
+        // Rate limit: 60 requests per minute per IP
+        if (env.RATE_LIMITER) {
+          const { success } = await env.RATE_LIMITER.limit(
+            { key: request.headers.get("CF-Connecting-IP") || "anonymous" }
+          );
+          if (!success) {
+            return json({ error: "Too many requests. Please try again later." }, 429);
+          }
+        }
         return await handleAPI(request, env);
       } catch (err) {
         console.error("API Error:", err);
@@ -2402,6 +2675,16 @@ export default {
     // SSR for post detail pages
     if (path === "/post" && url.searchParams.has("slug")) {
       return handleSSRPost(request, env);
+    }
+
+    // Tags page
+    if (path === "/tags") {
+      return env.ASSETS.fetch(new Request("https://same-host/tags.html"));
+    }
+
+    // Category page
+    if (path === "/category") {
+      return env.ASSETS.fetch(new Request("https://same-host/category.html"));
     }
 
     return env.ASSETS.fetch(request);

@@ -170,13 +170,32 @@
     var contentHtml;
     if (typeof marked !== "undefined") {
       contentHtml = marked.parse(post.content || "");
+      // XSS sanitize: remove script tags, event handlers, javascript: URLs
+      var temp = document.createElement("div");
+      temp.innerHTML = contentHtml;
+      temp.querySelectorAll("script, iframe, object, embed").forEach(function (el) {
+        el.remove();
+      });
+      temp.querySelectorAll("*").forEach(function (el) {
+        // Remove event handler attributes
+        var attrs = el.getAttributeNames();
+        attrs.forEach(function (attr) {
+          if (attr.toLowerCase().startsWith("on")) {
+            el.removeAttribute(attr);
+          }
+          if ((attr === "href" || attr === "src") && el.getAttribute(attr).toLowerCase().startsWith("javascript:")) {
+            el.removeAttribute(attr);
+          }
+        });
+      });
+      contentHtml = temp.innerHTML;
     } else {
       contentHtml = "<p>" + MD3.escapeHtml(post.content || "") + "</p>";
     }
 
     var tagsHtml = (post.tags || [])
       .map(function (tag) {
-        return '<span class="chip" style="height:28px;font-size:12px;cursor:default;padding:0 12px;">#' + MD3.escapeHtml(tag) + "</span>";
+        return '<a class="chip" href="/tags?t=' + encodeURIComponent(tag) + '" style="height:28px;font-size:12px;cursor:pointer;padding:0 12px;text-decoration:none;">#' + MD3.escapeHtml(tag) + "</a>";
       })
       .join("");
 
@@ -184,6 +203,9 @@
     var updatedLabel = t("post.updated");
     var authorLabel = t("post.author");
     var readingTime = estimateReadingTime(post.content || "");
+
+    // Category as clickable link
+    var categoryHtml = '<a href="/category?c=' + encodeURIComponent(post.category || uncategorized) + '" style="text-decoration:none;color:inherit;">' + MD3.escapeHtml(post.category || uncategorized) + '</a>';
 
     // Cover image HTML
     var coverHtml = "";
@@ -203,10 +225,10 @@
       }
       authorHtml =
         '<div class="post-detail__author">' +
-        '<span class="post-author-avatar" style="background:' + levelColor + ';">' +
+        '<a class="post-author-avatar" href="/profile.html?u=' + encodeURIComponent(post.authorName) + '" style="background:' + levelColor + ';">' +
         MD3.escapeHtml(post.authorName.charAt(0).toUpperCase()) +
-        "</span>" +
-        "<span>" + authorLabel + ': ' + MD3.escapeHtml(post.authorName) + "</span>" +
+        "</a>" +
+        '<span>' + authorLabel + ': <a class="post-author-link" href="/profile.html?u=' + encodeURIComponent(post.authorName) + '">' + MD3.escapeHtml(post.authorName) + '</a></span>' +
         "</div>";
     }
 
@@ -216,7 +238,7 @@
       coverHtml +
       '<div class="post-detail__header">' +
       '<span class="post-detail__category">' +
-      MD3.escapeHtml(post.category || uncategorized) +
+      categoryHtml +
       "</span>" +
       '<h1 class="post-detail__title">' +
       MD3.escapeHtml(post.title) +
@@ -230,6 +252,9 @@
       '<span style="color:var(--md-outline);">|</span>' +
       '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:var(--md-on-surface-variant);"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>' +
       '<span>' + readingTime + " " + t("post.read_time") + "</span>" +
+      '<span style="color:var(--md-outline);">|</span>' +
+      '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:var(--md-on-surface-variant);"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>' +
+      '<span>' + (post.viewCount || 0) + " " + t("post.views") + "</span>" +
       "</div>" +
       (authorHtml ? authorHtml : "") +
       (tagsHtml

@@ -275,12 +275,35 @@
     return div.innerHTML;
   }
 
+  // ===== Back to Top Button =====
+  function initBackToTop() {
+    var btn = document.createElement("button");
+    btn.className = "back-to-top";
+    btn.setAttribute("aria-label", "Back to top");
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z" fill="currentColor"/></svg>';
+    document.body.appendChild(btn);
+
+    btn.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    MD3.attachRipple(btn);
+
+    window.addEventListener("scroll", function () {
+      if (window.scrollY > 400) {
+        btn.classList.add("back-to-top--visible");
+      } else {
+        btn.classList.remove("back-to-top--visible");
+      }
+    });
+  }
+
   // ===== Initialize on DOM Ready =====
   function init() {
     if (global.I18N) I18N.initLanguage();
     initTheme();
     initRipples();
     initAppBarShadow();
+    initBackToTop();
     if (global.Auth) Auth.init();
     if (global.NavDrawer) NavDrawer.init();
   }

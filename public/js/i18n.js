@@ -219,6 +219,44 @@
       "admin.confirm_delete_comment": "Delete this comment",
       "admin.confirm_delete_comment_desc": "This action cannot be undone.",
       "admin.comment_deleted": "Comment deleted",
+      "admin.edit": "Edit",
+      "admin.search_users": "Search users...",
+      "admin.search": "Search",
+      "admin.batch_delete": "Batch Delete",
+      "admin.batch_ban": "Batch Ban",
+      "admin.batch_unban": "Batch Unban",
+      "admin.select_all": "Select All",
+      "admin.confirm_batch_delete_posts": "Delete selected posts",
+      "admin.confirm_batch_delete_posts_desc": "This will permanently delete all selected posts.",
+      "admin.confirm_batch_ban": "Ban selected users",
+      "admin.confirm_batch_unban": "Unban selected users",
+      "admin.batch_deleted": "Selected posts deleted",
+      "admin.batch_banned": "Selected users banned",
+      "admin.batch_unbanned": "Selected users unbanned",
+      "admin.no_selection": "Please select at least one item",
+      "admin.trend_title": "30-Day Trend",
+      "admin.trend_new_users": "New Users",
+      "admin.trend_new_posts": "New Posts",
+      "admin.trend_new_comments": "New Comments",
+      "admin.trend_cumulative": "Cumulative",
+
+      // Tags & Category pages
+      "tags.title": "Tags",
+      "tags.subtitle": "Browse posts by tag",
+      "tags.empty_title": "No tags found",
+      "tags.posts_count": "posts",
+      "tags.all_tags": "All Tags",
+      "category.title": "Categories",
+      "category.subtitle": "Browse posts by category",
+      "category.posts": "posts",
+      "category.empty_title": "No categories found",
+
+      // Post views
+      "post.views": "views",
+
+      // Nav
+      "nav.tags": "Tags",
+      "nav.categories": "Categories",
 
       // Sort & Feed
       "app.sort_latest": "Latest",
@@ -463,6 +501,44 @@
       "admin.confirm_delete_comment": "删除这条评论",
       "admin.confirm_delete_comment_desc": "此操作不可撤销。",
       "admin.comment_deleted": "评论已删除",
+      "admin.edit": "编辑",
+      "admin.search_users": "搜索用户...",
+      "admin.search": "搜索",
+      "admin.batch_delete": "批量删除",
+      "admin.batch_ban": "批量封禁",
+      "admin.batch_unban": "批量解封",
+      "admin.select_all": "全选",
+      "admin.confirm_batch_delete_posts": "删除选中文章",
+      "admin.confirm_batch_delete_posts_desc": "将永久删除所有选中的文章。",
+      "admin.confirm_batch_ban": "封禁选中用户",
+      "admin.confirm_batch_unban": "解封选中用户",
+      "admin.batch_deleted": "选中文章已删除",
+      "admin.batch_banned": "选中用户已封禁",
+      "admin.batch_unbanned": "选中用户已解封",
+      "admin.no_selection": "请至少选择一项",
+      "admin.trend_title": "30天趋势",
+      "admin.trend_new_users": "新增用户",
+      "admin.trend_new_posts": "新增文章",
+      "admin.trend_new_comments": "新增评论",
+      "admin.trend_cumulative": "累计",
+
+      // Tags & Category pages
+      "tags.title": "标签",
+      "tags.subtitle": "按标签浏览文章",
+      "tags.empty_title": "暂无标签",
+      "tags.posts_count": "篇文章",
+      "tags.all_tags": "全部标签",
+      "category.title": "分类",
+      "category.subtitle": "按分类浏览文章",
+      "category.posts": "篇文章",
+      "category.empty_title": "暂无分类",
+
+      // Post views
+      "post.views": "次浏览",
+
+      // Nav
+      "nav.tags": "标签",
+      "nav.categories": "分类",
 
       // Sort & Feed
       "app.sort_latest": "最新",

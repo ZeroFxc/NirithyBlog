@@ -14,6 +14,13 @@ run_worker_first = ["/api/*"]
 binding = "BUCKET"
 bucket_name = "md3-blog-storage"
 
+# Rate Limiting - 防刷接口 (60 req/min per IP)
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
+
 # 环境变量
 [vars]
 BLOG_TITLE = "NirithyBlog"
