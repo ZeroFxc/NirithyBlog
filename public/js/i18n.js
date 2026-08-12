@@ -218,7 +218,37 @@
       "admin.no_comments": "No comments found",
       "admin.confirm_delete_comment": "Delete this comment",
       "admin.confirm_delete_comment_desc": "This action cannot be undone.",
-      "admin.comment_deleted": "Comment deleted"
+      "admin.comment_deleted": "Comment deleted",
+
+      // Sort & Feed
+      "app.sort_latest": "Latest",
+      "app.sort_popular": "Popular",
+      "feed.title": "Following",
+      "feed.empty_title": "No posts from people you follow",
+      "feed.empty_desc": "Follow more users to see their posts here.",
+
+      // Like
+      "like.login_required": "Please login to like posts",
+
+      // Comment reply
+      "comments.reply": "Reply",
+
+      // Profile - social
+      "profile.follow": "Follow",
+      "profile.following": "Following",
+      "profile.followers": "Followers",
+      "profile.following_stat": "Following",
+      "profile.login_to_follow": "Please login to follow users",
+      "profile.bio_empty": "No bio yet",
+      "profile.edit_bio": "Edit Bio",
+      "profile.bio_placeholder": "Write something about yourself...",
+      "profile.save_bio": "Save",
+      "profile.cancel_bio": "Cancel",
+      "profile.bio_updated": "Bio updated",
+      "profile.bio_too_long": "Bio must be 200 characters or less",
+      "profile.avatar_updated": "Avatar updated",
+      "profile.avatar_too_large": "Image must be under 2MB",
+      "profile.avatar_invalid_type": "Please select an image file"
     },
 
     "zh-CN": {
@@ -432,7 +462,37 @@
       "admin.no_comments": "暂无评论",
       "admin.confirm_delete_comment": "删除这条评论",
       "admin.confirm_delete_comment_desc": "此操作不可撤销。",
-      "admin.comment_deleted": "评论已删除"
+      "admin.comment_deleted": "评论已删除",
+
+      // Sort & Feed
+      "app.sort_latest": "最新",
+      "app.sort_popular": "热门",
+      "feed.title": "关注动态",
+      "feed.empty_title": "暂无关注用户的文章",
+      "feed.empty_desc": "关注更多用户，在这里看到他们的最新文章。",
+
+      // Like
+      "like.login_required": "请登录后再点赞",
+
+      // Comment reply
+      "comments.reply": "回复",
+
+      // Profile - social
+      "profile.follow": "关注",
+      "profile.following": "已关注",
+      "profile.followers": "粉丝",
+      "profile.following_stat": "关注",
+      "profile.login_to_follow": "请登录后再关注用户",
+      "profile.bio_empty": "还没有个性签名",
+      "profile.edit_bio": "编辑签名",
+      "profile.bio_placeholder": "写点什么介绍一下自己...",
+      "profile.save_bio": "保存",
+      "profile.cancel_bio": "取消",
+      "profile.bio_updated": "签名已更新",
+      "profile.bio_too_long": "签名不能超过 200 字",
+      "profile.avatar_updated": "头像已更新",
+      "profile.avatar_too_large": "图片不能超过 2MB",
+      "profile.avatar_invalid_type": "请选择图片文件"
     }
   };
 

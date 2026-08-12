@@ -151,11 +151,17 @@
       // Logged in - show user menu
       if (userArea) {
         var levelColor = Auth.getLevelColor(currentUser.level);
+        var avatarHtml = currentUser.avatarUrl
+          ? '<span class="user-avatar user-avatar--img" style="background-image:url(\'' + currentUser.avatarUrl + '\');"></span>'
+          : '<span class="user-avatar" style="background:' + levelColor + ';">' +
+            Auth.escapeHtml(currentUser.username.charAt(0).toUpperCase()) + "</span>";
+        var avatarLgHtml = currentUser.avatarUrl
+          ? '<span class="user-avatar user-avatar--lg user-avatar--img" style="background-image:url(\'' + currentUser.avatarUrl + '\');"></span>'
+          : '<span class="user-avatar user-avatar--lg" style="background:' + levelColor + ';">' +
+            Auth.escapeHtml(currentUser.username.charAt(0).toUpperCase()) + "</span>";
         userArea.innerHTML =
           '<button class="user-chip" id="userMenuBtn">' +
-          '<span class="user-avatar" style="background:' + levelColor + ';">' +
-          Auth.escapeHtml(currentUser.username.charAt(0).toUpperCase()) +
-          "</span>" +
+          avatarHtml +
           '<span class="user-chip__info">' +
           "<span>" + Auth.escapeHtml(currentUser.username) + "</span>" +
           '<span class="user-chip__level">Lv.' + currentUser.level + " | " +
@@ -164,9 +170,7 @@
           "</button>" +
           '<div class="user-menu" id="userMenu">' +
           '<div class="user-menu__header">' +
-          '<span class="user-avatar user-avatar--lg" style="background:' + levelColor + ';">' +
-          Auth.escapeHtml(currentUser.username.charAt(0).toUpperCase()) +
-          "</span>" +
+          avatarLgHtml +
           "<div>" +
           '<div class="user-menu__name">' + Auth.escapeHtml(currentUser.username) + "</div>" +
           '<div class="user-menu__level">Lv.' + currentUser.level + " " + Auth.escapeHtml(currentUser.levelTitle) + "</div>" +

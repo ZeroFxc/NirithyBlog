@@ -72,12 +72,35 @@
   function renderProfile(user) {
     var container = document.getElementById("profileContainer");
     var levelColor = Auth.getLevelColor(user.level);
-    var isOwn = window.Auth && Auth.isLoggedIn() && Auth.getUser() && Auth.getUser().id === user.id;
+    var currentUser = (window.Auth && Auth.isLoggedIn()) ? Auth.getUser() : null;
+    var isOwn = currentUser && currentUser.id === user.id;
+    var isFollowing = user.isFollowing || false;
+
+    // Avatar: uploaded image, GitHub avatar, or first letter
+    var avatarInner, avatarStyle;
+    if (user.avatarUrl) {
+      avatarStyle = "background-image:url('" + user.avatarUrl + "');background-size:cover;background-position:center;";
+      avatarInner = "";
+    } else {
+      avatarStyle = "background:" + levelColor + ";";
+      avatarInner = MD3.escapeHtml(user.username.charAt(0).toUpperCase());
+    }
 
     var html =
       '<div class="profile-header">' +
-      '<div class="profile-header__avatar" style="background:' + levelColor + ';">' +
-      MD3.escapeHtml(user.username.charAt(0).toUpperCase()) +
+      '<div class="profile-header__avatar" style="' + avatarStyle + '">' +
+      avatarInner;
+
+    // Avatar upload overlay (own profile only)
+    if (isOwn) {
+      html +=
+        '<div class="profile-header__avatar-upload" id="avatarUploadBtn">' +
+        '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>' +
+        "</div>" +
+        '<input type="file" id="avatarFileInput" accept="image/*" style="display:none;" />';
+    }
+
+    html +=
       "</div>" +
       '<div class="profile-header__info">' +
       '<h1 class="profile-header__name">' + MD3.escapeHtml(user.username) + "</h1>";
@@ -94,7 +117,33 @@
       '<span class="profile-level-badge" style="background:' + levelColor + ';">' +
       "Lv." + user.level + " " + MD3.escapeHtml(user.levelTitle) +
       "</span>" +
-      "</div>" +
+      "</div>";
+
+    // Bio
+    if (user.bio) {
+      html += '<p class="profile-header__bio">' + MD3.escapeHtml(user.bio) + "</p>";
+    } else if (isOwn) {
+      html += '<p class="profile-header__bio profile-header__bio--empty">' + t("profile.bio_empty") + "</p>";
+    }
+
+    // Bio edit button (own profile)
+    if (isOwn) {
+      html +=
+        '<button class="btn-text btn-edit-bio" id="editBioBtn">' +
+        '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>' +
+        t("profile.edit_bio") +
+        "</button>";
+    }
+
+    // Follow button (not own profile, logged in)
+    if (!isOwn && currentUser) {
+      html +=
+        '<button class="btn-follow ' + (isFollowing ? "btn-follow--following" : "") + '" id="followBtn" data-username="' + MD3.escapeHtml(user.username) + '">' +
+        (isFollowing ? t("profile.following") : t("profile.follow")) +
+        "</button>";
+    }
+
+    html +=
       '<div class="profile-header__points">' +
       '<span class="profile-points-value">' + user.points + "</span>" +
       '<span class="profile-points-label">' + t("profile.points") + "</span>" +
@@ -109,7 +158,7 @@
       t("profile.next_level") + ": " + user.nextLevelPoints + " pts (" + user.progressToNext + "%)" +
       "</div>";
 
-    // Stats row
+    // Stats row: posts, followers, following
     html +=
       '<div class="profile-header__stats">' +
       '<div class="profile-stat">' +
@@ -117,12 +166,16 @@
       '<span class="profile-stat__label">' + t("profile.posts") + "</span>" +
       "</div>" +
       '<div class="profile-stat">' +
-      '<span class="profile-stat__value">' + user.checkinStreak + "</span>" +
-      '<span class="profile-stat__label">' + t("profile.streak") + "</span>" +
+      '<span class="profile-stat__value">' + (user.followersCount || 0) + "</span>" +
+      '<span class="profile-stat__label">' + t("profile.followers") + "</span>" +
       "</div>" +
       '<div class="profile-stat">' +
-      '<span class="profile-stat__value">' + (user.banned ? "BANNED" : "OK") + "</span>" +
-      '<span class="profile-stat__label">' + t("profile.status") + "</span>" +
+      '<span class="profile-stat__value">' + (user.followingCount || 0) + "</span>" +
+      '<span class="profile-stat__label">' + t("profile.following") + "</span>" +
+      "</div>" +
+      '<div class="profile-stat">' +
+      '<span class="profile-stat__value">' + user.checkinStreak + "</span>" +
+      '<span class="profile-stat__label">' + t("profile.streak") + "</span>" +
       "</div>" +
       "</div>";
 
@@ -171,6 +224,180 @@
         switchTab(tab.getAttribute("data-tab"));
       });
     });
+
+    // Bind avatar upload
+    initAvatarUpload();
+
+    // Bind bio edit
+    initBioEdit(user);
+
+    // Bind follow button
+    initFollowButton(user);
+  }
+
+  // ===== Avatar Upload =====
+  function initAvatarUpload() {
+    var uploadBtn = document.getElementById("avatarUploadBtn");
+    var fileInput = document.getElementById("avatarFileInput");
+    if (!uploadBtn || !fileInput) return;
+
+    uploadBtn.addEventListener("click", function () {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", async function () {
+      var file = fileInput.files[0];
+      if (!file) return;
+
+      // Validate size (2MB max)
+      if (file.size > 2 * 1024 * 1024) {
+        MD3.showSnackbar(t("profile.avatar_too_large"));
+        fileInput.value = "";
+        return;
+      }
+
+      // Validate type
+      if (!file.type.startsWith("image/")) {
+        MD3.showSnackbar(t("profile.avatar_invalid_type"));
+        fileInput.value = "";
+        return;
+      }
+
+      var formData = new FormData();
+      formData.append("avatar", file);
+
+      try {
+        uploadBtn.classList.add("loading");
+        var token = localStorage.getItem("nb-token");
+        var res = await fetch("/api/user/avatar", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+          body: formData,
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+
+        MD3.showSnackbar(t("profile.avatar_updated"));
+        if (profileUser) {
+          loadProfile(profileUser.username);
+        }
+        // Refresh current user data
+        if (window.Auth && Auth.refreshUser) {
+          await Auth.refreshUser();
+        }
+      } catch (e) {
+        MD3.showSnackbar(t("msg.error_prefix") + e.message);
+      } finally {
+        uploadBtn.classList.remove("loading");
+        fileInput.value = "";
+      }
+    });
+  }
+
+  // ===== Bio Edit =====
+  function initBioEdit(user) {
+    var editBtn = document.getElementById("editBioBtn");
+    if (!editBtn) return;
+
+    editBtn.addEventListener("click", function () {
+      // Inline edit: replace bio text with textarea
+      var bioEl = document.querySelector(".profile-header__bio");
+      var oldBio = user.bio || "";
+
+      var textarea = document.createElement("textarea");
+      textarea.className = "bio-edit-textarea";
+      textarea.value = oldBio;
+      textarea.maxLength = 200;
+      textarea.placeholder = t("profile.bio_placeholder");
+
+      var saveBtn = document.createElement("button");
+      saveBtn.className = "btn btn-tonal btn-bio-save";
+      saveBtn.textContent = t("profile.save_bio");
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn btn-text btn-bio-cancel";
+      cancelBtn.textContent = t("profile.cancel_bio");
+
+      var wrapper = document.createElement("div");
+      wrapper.className = "bio-edit-wrapper";
+      wrapper.appendChild(textarea);
+      wrapper.appendChild(document.createElement("br"));
+      wrapper.appendChild(saveBtn);
+      wrapper.appendChild(cancelBtn);
+
+      if (bioEl) {
+        bioEl.replaceWith(wrapper);
+      }
+      textarea.focus();
+
+      saveBtn.addEventListener("click", async function () {
+        var newBio = textarea.value.trim();
+        if (newBio.length > 200) {
+          MD3.showSnackbar(t("profile.bio_too_long"));
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "...";
+
+        try {
+          await MD3.api("/user/profile", {
+            method: "PUT",
+            body: { bio: newBio },
+          });
+          MD3.showSnackbar(t("profile.bio_updated"));
+          if (profileUser) {
+            loadProfile(profileUser.username);
+          }
+        } catch (e) {
+          MD3.showSnackbar(t("msg.error_prefix") + e.message);
+          saveBtn.disabled = false;
+          saveBtn.textContent = t("profile.save_bio");
+        }
+      });
+
+      cancelBtn.addEventListener("click", function () {
+        if (profileUser) {
+          renderProfile(profileUser);
+        }
+      });
+    });
+  }
+
+  // ===== Follow / Unfollow =====
+  function initFollowButton(user) {
+    var followBtn = document.getElementById("followBtn");
+    if (!followBtn) return;
+
+    followBtn.addEventListener("click", async function () {
+      if (!window.Auth || !Auth.isLoggedIn()) {
+        MD3.showSnackbar(t("profile.login_to_follow"));
+        return;
+      }
+
+      followBtn.disabled = true;
+      var wasFollowing = followBtn.classList.contains("btn-follow--following");
+
+      try {
+        if (wasFollowing) {
+          await MD3.api("/users/" + encodeURIComponent(user.username) + "/follow", {
+            method: "DELETE",
+          });
+          followBtn.classList.remove("btn-follow--following");
+          followBtn.textContent = t("profile.follow");
+        } else {
+          await MD3.api("/users/" + encodeURIComponent(user.username) + "/follow", {
+            method: "POST",
+          });
+          followBtn.classList.add("btn-follow--following");
+          followBtn.textContent = t("profile.following");
+        }
+      } catch (e) {
+        MD3.showSnackbar(t("msg.error_prefix") + e.message);
+      } finally {
+        followBtn.disabled = false;
+      }
+    });
   }
 
   function switchTab(tab) {
@@ -209,12 +436,17 @@
       var html = '<div class="post-list">';
       posts.forEach(function (post) {
         var levelColor = Auth.getLevelColor(profileUser.level);
+        var avatarHtml;
+        if (profileUser.avatarUrl) {
+          avatarHtml = '<span class="post-author-avatar" style="background-image:url(\'' + profileUser.avatarUrl + '\');background-size:cover;background-position:center;"></span>';
+        } else {
+          avatarHtml = '<span class="post-author-avatar" style="background:' + levelColor + ';">' +
+            MD3.escapeHtml(post.authorName.charAt(0).toUpperCase()) + '</span>';
+        }
         html +=
           '<a class="post-card" href="/post.html?slug=' + encodeURIComponent(post.slug) + '">' +
           '<div class="post-card__header">' +
-          '<span class="post-author-avatar" style="background:' + levelColor + ';">' +
-          MD3.escapeHtml(post.authorName.charAt(0).toUpperCase()) +
-          "</span>" +
+          avatarHtml +
           '<span class="post-card__author">' + MD3.escapeHtml(post.authorName) + "</span>" +
           '<span class="post-card__time">' + MD3.timeAgo(new Date(post.createdAt)) + "</span>" +
           "</div>" +
@@ -253,12 +485,17 @@
       var html = '<div class="comments-list">';
       comments.forEach(function (comment) {
         var levelColor = Auth.getLevelColor(profileUser.level);
+        var avatarHtml;
+        if (profileUser.avatarUrl) {
+          avatarHtml = '<span class="comment-avatar comment-avatar--img" style="background-image:url(\'' + profileUser.avatarUrl + '\');background-size:cover;background-position:center;"></span>';
+        } else {
+          avatarHtml = '<span class="comment-avatar" style="background:' + levelColor + ';">' +
+            MD3.escapeHtml(comment.username.charAt(0).toUpperCase()) + '</span>';
+        }
         html +=
           '<div class="comment-item">' +
           '<div class="comment-item__header">' +
-          '<span class="comment-avatar" style="background:' + levelColor + ';">' +
-          MD3.escapeHtml(comment.username.charAt(0).toUpperCase()) +
-          "</span>" +
+          avatarHtml +
           '<span class="comment-username">' + MD3.escapeHtml(comment.username) + "</span>" +
           '<span class="comment-level-badge" style="background:' + levelColor + ';">Lv.' + profileUser.level + "</span>" +
           '<span class="comment-time">' + MD3.timeAgo(new Date(comment.createdAt)) + "</span>" +

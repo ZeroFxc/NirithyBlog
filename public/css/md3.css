@@ -2616,3 +2616,380 @@ a.comment-username:hover {
 #infiniteLoader .progress-circular {
   animation: spin 1.4s linear infinite;
 }
+
+/* ===== Like Button (post detail) ===== */
+.post-detail__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0 8px;
+  border-top: 1px solid var(--md-outline-variant);
+  margin-top: 24px;
+}
+
+.like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 20px;
+  color: var(--md-on-surface-variant);
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+}
+
+.like-btn:hover {
+  background: var(--md-surface-container-high);
+}
+
+.like-btn:active {
+  transform: scale(0.94);
+}
+
+.like-btn__icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--md-on-surface-variant);
+  transition: fill 0.3s, transform 0.3s;
+}
+
+.like-btn--active .like-btn__icon {
+  fill: #ef4444;
+}
+
+.like-btn--active {
+  color: #ef4444;
+}
+
+.like-btn__count {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: left;
+}
+
+.like-btn--pop .like-btn__icon {
+  animation: like-pop 0.4s ease;
+}
+
+@keyframes like-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.4); }
+  60% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* ===== Card footer (like count on home) ===== */
+.card__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--md-outline-variant);
+}
+
+.card__like {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+}
+
+.card__like svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--md-on-surface-variant);
+}
+
+/* ===== Image Avatar ===== */
+.comment-avatar--img,
+.user-avatar--img {
+  background-size: cover !important;
+  background-position: center !important;
+}
+
+.comment-avatar--img {
+  text-indent: -9999px;
+}
+
+/* ===== Nested Comments ===== */
+.comment-replies {
+  margin-left: 44px;
+  padding-left: 16px;
+  border-left: 2px solid var(--md-outline-variant);
+}
+
+.comment-item[style*="--depth"] {
+  margin-top: 12px;
+}
+
+.comment-reply-to {
+  color: var(--md-primary);
+  font-weight: 600;
+  margin-right: 4px;
+  text-decoration: none;
+}
+
+.comment-reply-to:hover {
+  text-decoration: underline;
+}
+
+.mention {
+  color: var(--md-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.mention:hover {
+  text-decoration: underline;
+}
+
+.comment-reply-btn {
+  background: none;
+  border: none;
+  color: var(--md-on-surface-variant);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 12px;
+  margin-top: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.comment-reply-btn:hover {
+  background: var(--md-surface-container-high);
+  color: var(--md-primary);
+}
+
+/* ===== Reply Indicator ===== */
+.reply-indicator {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--md-surface-container-high);
+  border-radius: 8px 8px 0 0;
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+}
+
+.reply-indicator__name {
+  font-weight: 600;
+  color: var(--md-primary);
+}
+
+#cancelReplyBtn {
+  background: none;
+  border: none;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 50%;
+  margin-left: auto;
+  font-size: 16px;
+  line-height: 1;
+}
+
+#cancelReplyBtn:hover {
+  background: var(--md-surface-container-highest);
+}
+
+/* ===== Sort Toggle Chips ===== */
+.sort-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--md-surface-container);
+  border-radius: 20px;
+}
+
+.sort-chip {
+  padding: 6px 16px;
+  border: none;
+  background: none;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sort-chip--active {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+/* ===== Feed Tab ===== */
+.feed-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: 1px solid var(--md-outline);
+  background: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.feed-tab:hover {
+  background: var(--md-surface-container-high);
+}
+
+.feed-tab--active {
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  border-color: transparent;
+}
+
+.feed-tab svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* ===== Profile: Avatar Upload ===== */
+.profile-header__avatar {
+  position: relative;
+  overflow: visible;
+}
+
+.profile-header__avatar-upload {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.profile-header__avatar:hover .profile-header__avatar-upload {
+  opacity: 1;
+}
+
+.profile-header__avatar-upload.loading {
+  opacity: 1;
+}
+
+/* ===== Profile: Bio ===== */
+.profile-header__bio {
+  font-size: 14px;
+  color: var(--md-on-surface-variant);
+  margin: 8px 0;
+  line-height: 1.5;
+  max-width: 400px;
+}
+
+.profile-header__bio--empty {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.btn-edit-bio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--md-primary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 8px;
+}
+
+.btn-edit-bio:hover {
+  text-decoration: underline;
+}
+
+.bio-edit-wrapper {
+  margin: 8px 0;
+  max-width: 400px;
+}
+
+.bio-edit-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px;
+  border: 1px solid var(--md-outline);
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  resize: vertical;
+}
+
+.bio-edit-textarea:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  border-width: 2px;
+}
+
+.btn-bio-save {
+  margin-top: 8px;
+  margin-right: 8px;
+}
+
+.btn-bio-cancel {
+  background: none;
+  border: none;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 6px 12px;
+}
+
+.btn-bio-cancel:hover {
+  text-decoration: underline;
+}
+
+/* ===== Profile: Follow Button ===== */
+.btn-follow {
+  padding: 6px 20px;
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  margin-bottom: 8px;
+}
+
+.btn-follow:not(.btn-follow--following) {
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.btn-follow:not(.btn-follow--following):hover {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.btn-follow--following {
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface-variant);
+  border: 1px solid var(--md-outline-variant);
+}
+
+.btn-follow--following:hover {
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+  border-color: transparent;
+}
+
+/* ===== Profile: Image Avatar ===== */
+.profile-header__avatar[style*="background-image"] {
+  text-indent: -9999px;
+}

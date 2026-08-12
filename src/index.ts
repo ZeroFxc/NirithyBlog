@@ -17,6 +17,7 @@ interface Post {
   createdAt: string;
   updatedAt: string;
   coverImage?: string;
+  likeCount?: number;
 }
 
 interface PostSummary {
@@ -30,6 +31,7 @@ interface PostSummary {
   createdAt: string;
   updatedAt: string;
   coverImage?: string;
+  likeCount?: number;
 }
 
 interface User {
@@ -45,6 +47,10 @@ interface User {
   banned: boolean;
   githubId?: number;
   githubUsername?: string;
+  avatarUrl?: string;
+  bio?: string;
+  followingCount?: number;
+  followersCount?: number;
 }
 
 interface UserPublic {
@@ -64,6 +70,11 @@ interface UserPublic {
   postCount: number;
   githubId?: number;
   githubUsername?: string;
+  avatarUrl?: string;
+  bio?: string;
+  followingCount?: number;
+  followersCount?: number;
+  isFollowing?: boolean;
 }
 
 interface Comment {
@@ -74,6 +85,9 @@ interface Comment {
   userLevel: number;
   content: string;
   createdAt: string;
+  parentId?: string;
+  replyToUsername?: string;
+  avatarUrl?: string;
 }
 
 interface CheckinRecord {
@@ -108,6 +122,9 @@ const COMMENTS_PREFIX = "comments/";
 const CHECKIN_PREFIX = "checkin/";
 const POINTS_PREFIX = "points/";
 const GITHUB_PREFIX = "github/";
+const LIKES_PREFIX = "likes/";
+const FOLLOWS_PREFIX = "follows/";
+const AVATARS_PREFIX = "avatars/";
 const SITE_URL = "https://xn--kiv483g.online";
 
 const PBKDF2_ITERATIONS = 100000;
@@ -204,6 +221,10 @@ function toUserPublic(user: User, env?: Env): UserPublic {
   const today = new Date().toISOString().split("T")[0];
   const checkedInToday = user.lastCheckin === today;
 
+  // Get avatar: uploaded > GitHub > undefined
+  const avatarUrl = user.avatarUrl ||
+    (user.githubId ? `https://avatars.githubusercontent.com/u/${user.githubId}?s=200` : undefined);
+
   const pub: UserPublic = {
     id: user.id,
     username: user.username,
@@ -221,6 +242,10 @@ function toUserPublic(user: User, env?: Env): UserPublic {
     postCount: 0,
     githubId: user.githubId || undefined,
     githubUsername: user.githubUsername || undefined,
+    avatarUrl,
+    bio: user.bio || undefined,
+    followingCount: user.followingCount || 0,
+    followersCount: user.followersCount || 0,
   };
 
   // postCount is filled lazily by callers if env is provided
@@ -452,6 +477,7 @@ async function listPosts(env: Env): Promise<PostSummary[]> {
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
         coverImage: post.coverImage || undefined,
+        likeCount: post.likeCount || 0,
       });
     }
     cursor = listed.truncated ? listed.cursor : undefined;
@@ -1082,6 +1108,21 @@ async function handleListComments(
   return json({ comments, total: comments.length });
 }
 
+async function handleListCommentsAuth(
+  postSlug: string,
+  user: User,
+  env: Env
+): Promise<Response> {
+  const comments = await listComments(postSlug, env);
+  return json({
+    comments,
+    total: comments.length,
+    currentUserId: user.id,
+    currentUserAvatar: user.avatarUrl ||
+      (user.githubId ? `https://avatars.githubusercontent.com/u/${user.githubId}?s=200` : undefined),
+  });
+}
+
 async function handleCreateComment(
   postSlug: string,
   request: Request,
@@ -1097,9 +1138,9 @@ async function handleCreateComment(
     return json({ error: "Post not found" }, 404);
   }
 
-  let body: { content?: string };
+  let body: { content?: string; parentId?: string; replyTo?: string };
   try {
-    body = (await request.json()) as { content?: string };
+    body = (await request.json()) as { content?: string; parentId?: string; replyTo?: string };
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
@@ -1112,7 +1153,18 @@ async function handleCreateComment(
     return json({ error: "Comment must be 500 characters or less" }, 400);
   }
 
+  // Validate parentId if provided
+  if (body.parentId) {
+    const parent = await getComment(postSlug, body.parentId, env);
+    if (!parent) {
+      return json({ error: "Parent comment not found" }, 404);
+    }
+  }
+
   const levelInfo = getLevelInfo(user.points);
+  const avatarUrl = user.avatarUrl ||
+    (user.githubId ? `https://avatars.githubusercontent.com/u/${user.githubId}?s=200` : undefined);
+
   const comment: Comment = {
     id: generateId(),
     postSlug,
@@ -1121,6 +1173,9 @@ async function handleCreateComment(
     userLevel: levelInfo.level,
     content,
     createdAt: new Date().toISOString(),
+    parentId: body.parentId || undefined,
+    replyToUsername: body.replyTo || undefined,
+    avatarUrl,
   };
 
   await saveComment(comment, env);
@@ -1236,6 +1291,7 @@ async function handleCreatePost(
     createdAt: now,
     updatedAt: now,
     coverImage: body.coverImage || undefined,
+    likeCount: 0,
   };
 
   await savePost(post, env);
@@ -1374,6 +1430,7 @@ async function handleBlogInfo(env: Env): Promise<Response> {
 
 async function handleUserProfile(
   username: string,
+  request: Request,
   env: Env
 ): Promise<Response> {
   const user = await getUserByUsername(username, env);
@@ -1382,6 +1439,13 @@ async function handleUserProfile(
   }
 
   const pub = await toUserPublicWithCount(user, env);
+
+  // Check if current user is following
+  const viewer = await getAuthUser(request, env);
+  if (viewer) {
+    pub.isFollowing = await isFollowing(viewer.id, user.id, env);
+  }
+
   return json({ user: pub });
 }
 
@@ -1572,6 +1636,300 @@ async function handleAdminDeleteComment(
   return json({ success: true });
 }
 
+// ===== Likes =====
+
+async function getLikeCount(slug: string, env: Env): Promise<number> {
+  const obj = await env.BUCKET.get(`${LIKES_PREFIX}${slug}/count.json`);
+  if (!obj) return 0;
+  const data = (await obj.json()) as { count: number };
+  return data.count || 0;
+}
+
+async function setLikeCount(slug: string, count: number, env: Env): Promise<void> {
+  await env.BUCKET.put(
+    `${LIKES_PREFIX}${slug}/count.json`,
+    JSON.stringify({ count }),
+    { httpMetadata: { contentType: "application/json" } }
+  );
+}
+
+async function hasLiked(slug: string, userId: string, env: Env): Promise<boolean> {
+  const obj = await env.BUCKET.get(`${LIKES_PREFIX}${slug}/${userId}.json`);
+  return !!obj;
+}
+
+async function handleToggleLike(
+  slug: string,
+  user: User,
+  env: Env
+): Promise<Response> {
+  const post = await getPost(slug, env);
+  if (!post) return json({ error: "Post not found" }, 404);
+
+  const liked = await hasLiked(slug, user.id, env);
+  let count = await getLikeCount(slug, env);
+
+  if (liked) {
+    // Unlike
+    await env.BUCKET.delete(`${LIKES_PREFIX}${slug}/${user.id}.json`);
+    count = Math.max(0, count - 1);
+    await setLikeCount(slug, count, env);
+
+    // Update post likeCount
+    post.likeCount = count;
+    await savePost(post, env);
+
+    return json({ liked: false, likeCount: count });
+  } else {
+    // Like
+    await env.BUCKET.put(
+      `${LIKES_PREFIX}${slug}/${user.id}.json`,
+      JSON.stringify({ userId: user.id, createdAt: new Date().toISOString() }),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+    count += 1;
+    await setLikeCount(slug, count, env);
+
+    // Update post likeCount
+    post.likeCount = count;
+    await savePost(post, env);
+
+    // Award points to post author (not self-like)
+    if (post.authorId !== user.id) {
+      const authorObj = await env.BUCKET.get(`${USERS_PREFIX}${post.authorId}.json`);
+      if (authorObj) {
+        const author = (await authorObj.json()) as User;
+        author.points += 1;
+        await saveUser(author, env);
+        await addPointsLog(author.id, "like", 1, `Post "${post.title}" received a like`, env);
+      }
+    }
+
+    return json({ liked: true, likeCount: count });
+  }
+}
+
+async function handlePopularPosts(env: Env): Promise<Response> {
+  const allPosts = await listPosts(env);
+  allPosts.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
+  const top = allPosts.slice(0, 10);
+  return json({ posts: top });
+}
+
+// ===== User Profile Update =====
+
+async function handleUpdateProfile(
+  request: Request,
+  user: User,
+  env: Env
+): Promise<Response> {
+  let body: { bio?: string };
+  try {
+    body = (await request.json()) as { bio?: string };
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  if (body.bio !== undefined) {
+    if (body.bio.length > 200) {
+      return json({ error: "Bio must be 200 characters or less" }, 400);
+    }
+    user.bio = body.bio.trim();
+  }
+
+  await saveUser(user, env);
+  return json({ user: toUserPublic(user) });
+}
+
+// ===== Avatar Upload =====
+
+async function handleUploadAvatar(
+  request: Request,
+  user: User,
+  env: Env
+): Promise<Response> {
+  const contentType = request.headers.get("Content-Type") || "";
+  if (!contentType.startsWith("image/")) {
+    return json({ error: "Content-Type must be image/*" }, 400);
+  }
+
+  // Max 2MB
+  const body = await request.arrayBuffer();
+  if (body.byteLength > 2 * 1024 * 1024) {
+    return json({ error: "Image must be 2MB or less" }, 400);
+  }
+
+  const ext = contentType.split("/")[1] || "jpeg";
+  const key = `${AVATARS_PREFIX}${user.id}.${ext}`;
+
+  await env.BUCKET.put(key, body, {
+    httpMetadata: { contentType },
+  });
+
+  // Store avatar URL path in user
+  user.avatarUrl = `/api/user/avatar/${user.id}`;
+  await saveUser(user, env);
+
+  return json({
+    success: true,
+    avatarUrl: user.avatarUrl,
+    user: toUserPublic(user),
+  });
+}
+
+async function handleGetAvatar(userId: string, env: Env): Promise<Response> {
+  // Try common extensions
+  for (const ext of ["jpeg", "png", "webp", "gif", "jpg"]) {
+    const obj = await env.BUCKET.get(`${AVATARS_PREFIX}${userId}.${ext}`);
+    if (obj) {
+      return new Response(obj.body, {
+        headers: {
+          "Content-Type": obj.httpMetadata?.contentType || "image/jpeg",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
+    }
+  }
+  return new Response("Not found", { status: 404 });
+}
+
+// ===== Follow System =====
+
+async function isFollowing(
+  followerId: string,
+  targetUserId: string,
+  env: Env
+): Promise<boolean> {
+  const obj = await env.BUCKET.get(
+    `${FOLLOWS_PREFIX}${followerId}/${targetUserId}.json`
+  );
+  return !!obj;
+}
+
+async function handleFollow(
+  targetUsername: string,
+  user: User,
+  env: Env
+): Promise<Response> {
+  const target = await getUserByUsername(targetUsername, env);
+  if (!target) return json({ error: "User not found" }, 404);
+  if (target.id === user.id) return json({ error: "Cannot follow yourself" }, 400);
+
+  const already = await isFollowing(user.id, target.id, env);
+  if (already) return json({ error: "Already following" }, 400);
+
+  await env.BUCKET.put(
+    `${FOLLOWS_PREFIX}${user.id}/${target.id}.json`,
+    JSON.stringify({ createdAt: new Date().toISOString() }),
+    { httpMetadata: { contentType: "application/json" } }
+  );
+
+  user.followingCount = (user.followingCount || 0) + 1;
+  target.followersCount = (target.followersCount || 0) + 1;
+  await saveUser(user, env);
+  await saveUser(target, env);
+
+  return json({
+    success: true,
+    following: true,
+    followingCount: user.followingCount,
+    followersCount: target.followersCount,
+  });
+}
+
+async function handleUnfollow(
+  targetUsername: string,
+  user: User,
+  env: Env
+): Promise<Response> {
+  const target = await getUserByUsername(targetUsername, env);
+  if (!target) return json({ error: "User not found" }, 404);
+
+  const already = await isFollowing(user.id, target.id, env);
+  if (!already) return json({ error: "Not following" }, 400);
+
+  await env.BUCKET.delete(`${FOLLOWS_PREFIX}${user.id}/${target.id}.json`);
+
+  user.followingCount = Math.max(0, (user.followingCount || 0) - 1);
+  target.followersCount = Math.max(0, (target.followersCount || 0) - 1);
+  await saveUser(user, env);
+  await saveUser(target, env);
+
+  return json({
+    success: true,
+    following: false,
+    followingCount: user.followingCount,
+    followersCount: target.followersCount,
+  });
+}
+
+async function handleFollowingFeed(
+  user: User,
+  env: Env
+): Promise<Response> {
+  // List all followed users
+  const listed = await env.BUCKET.list({
+    prefix: `${FOLLOWS_PREFIX}${user.id}/`,
+  });
+  const followedIds: string[] = [];
+  for (const item of listed.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    // Extract target userId from key: follows/{followerId}/{targetUserId}.json
+    const match = item.key.match(/\/([^/]+)\.json$/);
+    if (match) followedIds.push(match[1]);
+  }
+
+  if (followedIds.length === 0) return json({ posts: [], total: 0 });
+
+  const allPosts = await listPosts(env);
+  const feed = allPosts.filter((p) => followedIds.includes(p.authorId));
+  return json({ posts: feed, total: feed.length });
+}
+
+// ===== RSS Feed =====
+
+async function handleRSS(env: Env): Promise<Response> {
+  const posts = await listPosts(env);
+  const top = posts.slice(0, 20);
+  const now = new Date().toUTCString();
+  const blogTitle = env.BLOG_TITLE || "NirithyBlog";
+  const blogDesc = env.BLOG_DESCRIPTION || "NirithyBlog on Cloudflare Workers + R2";
+
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n';
+  xml += "  <channel>\n";
+  xml += `    <title>${escapeHtmlAttr(blogTitle)}</title>\n`;
+  xml += `    <link>${SITE_URL}</link>\n`;
+  xml += `    <description>${escapeHtmlAttr(blogDesc)}</description>\n`;
+  xml += `    <language>zh-CN</language>\n`;
+  xml += `    <lastBuildDate>${now}</lastBuildDate>\n`;
+  xml += `    <atom:link href="${SITE_URL}/feed.xml" rel="self" type="application/rss+xml" />\n`;
+
+  for (const post of top) {
+    const pubDate = new Date(post.createdAt).toUTCString();
+    const postUrl = `${SITE_URL}/post?slug=${encodeURIComponent(post.slug)}`;
+    xml += "    <item>\n";
+    xml += `      <title>${escapeHtmlAttr(post.title)}</title>\n`;
+    xml += `      <link>${postUrl}</link>\n`;
+    xml += `      <guid isPermaLink="true">${postUrl}</guid>\n`;
+    xml += `      <pubDate>${pubDate}</pubDate>\n`;
+    xml += `      <description>${escapeHtmlAttr(post.excerpt || "")}</description>\n`;
+    if (post.coverImage) {
+      xml += `      <enclosure url="${escapeHtmlAttr(post.coverImage)}" type="image/jpeg" />\n`;
+    }
+    xml += "    </item>\n";
+  }
+
+  xml += "  </channel>\n</rss>";
+
+  return new Response(xml, {
+    headers: {
+      "Content-Type": "application/rss+xml; charset=UTF-8",
+      "Cache-Control": "public, max-age=600",
+    },
+  });
+}
+
 // ===== Router =====
 
 async function handleAPI(request: Request, env: Env): Promise<Response> {
@@ -1600,6 +1958,11 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
   // Posts list (public, paginated)
   if (path === "/posts" && method === "GET") {
     return handleListPosts(request, env);
+  }
+
+  // Popular posts (by likes)
+  if (path === "/posts/popular" && method === "GET") {
+    return handlePopularPosts(env);
   }
 
   // Auth routes
@@ -1656,6 +2019,27 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
     return handlePointsLog(user, env);
   }
 
+  // Update profile (bio, etc.)
+  if (path === "/user/profile" && method === "PUT") {
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "Not authenticated" }, 401);
+    return handleUpdateProfile(request, user, env);
+  }
+
+  // Upload avatar
+  if (path === "/user/avatar" && method === "POST") {
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "Not authenticated" }, 401);
+    return handleUploadAvatar(request, user, env);
+  }
+
+  // Following feed
+  if (path === "/user/feed" && method === "GET") {
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "Not authenticated" }, 401);
+    return handleFollowingFeed(user, env);
+  }
+
   // Create post (auth required)
   if (path === "/posts" && method === "POST") {
     const user = await getAuthUser(request, env);
@@ -1688,7 +2072,12 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
   if (commentsMatch) {
     const postSlug = decodeURIComponent(commentsMatch[1]);
 
-    if (method === "GET") return handleListComments(postSlug, env);
+    if (method === "GET") {
+      // Try auth-enhanced version
+      const user = await getAuthUser(request, env);
+      if (user) return handleListCommentsAuth(postSlug, user, env);
+      return handleListComments(postSlug, env);
+    }
 
     if (method === "POST") {
       const user = await getAuthUser(request, env);
@@ -1716,12 +2105,46 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
     return handleDeleteComment(postSlug, commentId, user, env);
   }
 
+  // Like routes
+  const likeMatch = path.match(/^\/posts\/([^/]+)\/like$/);
+  if (likeMatch) {
+    const slug = decodeURIComponent(likeMatch[1]);
+    if (method === "POST") {
+      const user = await getAuthUser(request, env);
+      if (!user) return json({ error: "Login required" }, 401);
+      return handleToggleLike(slug, user, env);
+    }
+    if (method === "GET") {
+      const user = await getAuthUser(request, env);
+      const count = await getLikeCount(slug, env);
+      const liked = user ? await hasLiked(slug, user.id, env) : false;
+      return json({ likeCount: count, liked });
+    }
+  }
+
+  // Follow routes
+  const followMatch = path.match(/^\/users\/([^/]+)\/follow$/);
+  if (followMatch) {
+    const targetUsername = decodeURIComponent(followMatch[1]);
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "Login required" }, 401);
+    if (method === "POST") return handleFollow(targetUsername, user, env);
+    if (method === "DELETE") return handleUnfollow(targetUsername, user, env);
+  }
+
+  // Avatar retrieval
+  const avatarMatch = path.match(/^\/user\/avatar\/([^/]+)$/);
+  if (avatarMatch && method === "GET") {
+    const userId = decodeURIComponent(avatarMatch[1]);
+    return handleGetAvatar(userId, env);
+  }
+
   // ===== User Profile (public) =====
 
   const userProfileMatch = path.match(/^\/users\/([^/]+)$/);
   if (userProfileMatch && method === "GET") {
     const username = decodeURIComponent(userProfileMatch[1]);
-    return handleUserProfile(username, env);
+    return handleUserProfile(username, request, env);
   }
 
   const userPostsMatch = path.match(/^\/users\/([^/]+)\/posts$/);
@@ -1932,7 +2355,10 @@ function handleRobots(): Response {
     `Disallow: /admin\n` +
     `Disallow: /editor\n` +
     `\n` +
-    `Sitemap: ${SITE_URL}/sitemap.xml\n`;
+    `Sitemap: ${SITE_URL}/sitemap.xml\n` +
+    `\n` +
+    `# RSS Feed\n` +
+    `# ${SITE_URL}/feed.xml\n`;
 
   return new Response(txt, {
     headers: { "Content-Type": "text/plain;charset=UTF-8" },
@@ -1966,6 +2392,11 @@ export default {
     // robots.txt
     if (path === "/robots.txt") {
       return handleRobots();
+    }
+
+    // RSS feed
+    if (path === "/feed.xml") {
+      return handleRSS(env);
     }
 
     // SSR for post detail pages

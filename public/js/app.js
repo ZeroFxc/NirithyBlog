@@ -15,6 +15,7 @@
   var hasMore = true;
   var isLoading = false;
   var sentinelObserver = null;
+  var sortBy = "latest"; // "latest" or "popular"
 
   // ===== i18n helper =====
   function t(key) {
@@ -31,6 +32,8 @@
     initLangListener();
     initAuthListener();
     initInfiniteScroll();
+    initSortToggle();
+    initFeedTab();
   });
 
   // ===== Listen for auth changes =====
@@ -319,6 +322,12 @@
         MD3.escapeHtml(p.excerpt || "") +
         "</p>" +
         (tagsHtml ? '<div style="display:flex;gap:4px;margin-top:12px;flex-wrap:wrap;">' + tagsHtml + "</div>" : "") +
+        '<div class="card__footer">' +
+        '<span class="card__like">' +
+        '<svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>' +
+        '<span>' + (p.likeCount || 0) + "</span>" +
+        "</span>" +
+        "</div>" +
         "</div>" +
         "</article>";
     });
@@ -372,6 +381,113 @@
           window.location.href = "/editor";
         }
       });
+    }
+  }
+
+  // ===== Sort Toggle (Latest / Popular) =====
+  function initSortToggle() {
+    var sortContainer = document.getElementById("sortToggle");
+    if (!sortContainer) return;
+
+    sortContainer.innerHTML =
+      '<button class="chip chip--selected" data-sort="latest">' + t("app.sort_latest") + "</button>" +
+      '<button class="chip" data-sort="popular">' + t("app.sort_popular") + "</button>";
+
+    sortContainer.querySelectorAll(".chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        sortContainer.querySelectorAll(".chip").forEach(function (c) {
+          c.classList.remove("chip--selected");
+        });
+        chip.classList.add("chip--selected");
+        sortBy = chip.dataset.sort;
+
+        if (sortBy === "popular") {
+          loadPopularPosts();
+        } else {
+          currentPage = 1;
+          hasMore = true;
+          allPosts = [];
+          loadPosts(1);
+        }
+      });
+      MD3.attachRipple(chip);
+    });
+  }
+
+  async function loadPopularPosts() {
+    var container = document.getElementById("postsContainer");
+    isLoading = true;
+    container.innerHTML =
+      '<div class="loading-container"><div class="progress-circular"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"></circle></svg></div></div>';
+
+    try {
+      var data = await MD3.api("/posts/popular");
+      allPosts = data.posts || [];
+      hasMore = false;
+      renderPosts();
+      updateLoadMoreText();
+    } catch (e) {
+      container.innerHTML = '<p style="color:var(--md-on-surface-variant);text-align:center;padding:24px;">' + MD3.escapeHtml(e.message) + "</p>";
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  // ===== Following Feed Tab =====
+  function initFeedTab() {
+    var feedBtn = document.getElementById("feedTabBtn");
+    if (!feedBtn) return;
+
+    // Show/hide based on login status
+    function updateFeedVisibility() {
+      if (window.Auth && Auth.isLoggedIn()) {
+        feedBtn.style.display = "";
+      } else {
+        feedBtn.style.display = "none";
+      }
+    }
+    updateFeedVisibility();
+
+    window.addEventListener("authChanged", updateFeedVisibility);
+
+    feedBtn.addEventListener("click", function () {
+      loadFollowingFeed();
+    });
+  }
+
+  async function loadFollowingFeed() {
+    var container = document.getElementById("postsContainer");
+    if (!container) return;
+    if (!window.Auth || !Auth.isLoggedIn()) {
+      Auth.showLoginDialog();
+      return;
+    }
+
+    container.innerHTML =
+      '<div class="loading-container"><div class="progress-circular"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"></circle></svg></div></div>';
+
+    try {
+      var data = await MD3.api("/user/feed");
+      allPosts = data.posts || [];
+      hasMore = false;
+
+      var loader = document.getElementById("infiniteLoader");
+      if (loader) loader.style.display = "none";
+
+      if (allPosts.length === 0) {
+        container.innerHTML =
+          '<div class="empty-state">' +
+          '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/></svg></div>' +
+          '<h2 class="empty-state__title">' + t("feed.empty_title") + '</h2>' +
+          '<p class="empty-state__description">' + t("feed.empty_desc") + '</p>' +
+          "</div>";
+        return;
+      }
+
+      renderPosts();
+      updateLoadMoreText();
+    } catch (e) {
+      container.innerHTML = '<p style="color:var(--md-on-surface-variant);text-align:center;padding:24px;">' + MD3.escapeHtml(e.message) + "</p>";
     }
   }
 })();

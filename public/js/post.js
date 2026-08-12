@@ -9,6 +9,8 @@
 
   var currentSlug = null;
   var currentPost = null;
+  var replyToId = null;
+  var replyToUsername = null;
 
   // ===== i18n helper =====
   function t(key) {
@@ -237,6 +239,12 @@
       '<div class="post-detail__content" id="postContent">' +
       contentHtml +
       "</div>" +
+      '<div class="post-detail__actions">' +
+      '<button class="like-btn" id="likeBtn">' +
+      '<svg class="like-btn__icon" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="currentColor"/></svg>' +
+      '<span class="like-btn__count" id="likeCount">' + (post.likeCount || 0) + '</span>' +
+      "</button>" +
+      "</div>" +
       "</div>" +
       '<div class="post-detail__sidebar" id="postSidebar"></div>' +
       "</div>";
@@ -252,6 +260,7 @@
     }
 
     MD3.initRipples();
+    initLikeButton(post);
   }
 
   // ===== Show Error =====
@@ -339,6 +348,12 @@
         }
       });
     }
+
+    // Cancel reply button
+    var cancelReplyBtn = document.getElementById("cancelReplyBtn");
+    if (cancelReplyBtn) {
+      cancelReplyBtn.addEventListener("click", clearReplyTo);
+    }
   }
 
   function updateCommentUI() {
@@ -379,36 +394,122 @@
       return;
     }
 
-    var html = "";
+    // Build tree: top-level vs replies grouped by parentId
+    var topLevel = [];
+    var repliesMap = {};
     comments.forEach(function (c) {
-      var levelColor = (window.Auth) ? Auth.getLevelColor(c.userLevel || 1) : "#9E9E9E";
-      var canDelete = (window.Auth && Auth.isLoggedIn() && Auth.getUser() && c.userId === Auth.getUser().id);
-      var isOwn = (window.Auth && Auth.isLoggedIn() && Auth.getUser() && c.userId === Auth.getUser().id);
-      var ownClass = isOwn ? " comment-item--own" : "";
+      if (!c.parentId) {
+        topLevel.push(c);
+      } else {
+        if (!repliesMap[c.parentId]) repliesMap[c.parentId] = [];
+        repliesMap[c.parentId].push(c);
+      }
+    });
 
-      html +=
-        '<div class="comment-item' + ownClass + '">' +
-        '<div class="comment-item__header">' +
-        '<a class="comment-avatar" href="/profile.html?u=' + encodeURIComponent(c.username) + '" style="background:' + levelColor + ';">' +
-        MD3.escapeHtml(c.username.charAt(0).toUpperCase()) +
-        "</a>" +
-        '<a class="comment-username" href="/profile.html?u=' + encodeURIComponent(c.username) + '">' + MD3.escapeHtml(c.username) + "</a>" +
-        '<span class="comment-level-badge" style="background:' + levelColor + ';">Lv.' + c.userLevel + "</span>" +
-        '<span class="comment-time">' + MD3.timeAgo(c.createdAt) + "</span>" +
-        (canDelete ? '<button class="comment-delete-btn" data-comment-id="' + c.id + '">' + t("comments.delete") + "</button>" : "") +
-        "</div>" +
-        '<p class="comment-content">' + MD3.escapeHtml(c.content) + "</p>" +
-        "</div>";
+    var html = "";
+    topLevel.forEach(function (c) {
+      html += renderCommentItem(c, repliesMap, 0);
     });
 
     list.innerHTML = html;
 
-    // Bind delete buttons
+    // Bind delete and reply buttons
     list.querySelectorAll(".comment-delete-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         deleteComment(btn.dataset.commentId);
       });
     });
+    list.querySelectorAll(".comment-reply-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setReplyTo(btn.dataset.commentId, btn.dataset.username);
+      });
+    });
+  }
+
+  function renderCommentItem(comment, repliesMap, depth) {
+    var levelColor = (window.Auth) ? Auth.getLevelColor(comment.userLevel || 1) : "#9E9E9E";
+    var user = (window.Auth && Auth.isLoggedIn()) ? Auth.getUser() : null;
+    var canDelete = (user && (comment.userId === user.id || user.role === "admin"));
+    var isOwn = (user && comment.userId === user.id);
+    var ownClass = isOwn ? " comment-item--own" : "";
+
+    // Avatar: uploaded/GitHub avatar or first letter
+    var avatarStyle, avatarContent, avatarClass;
+    if (comment.avatarUrl) {
+      avatarStyle = "background-image:url('" + comment.avatarUrl + "');background-size:cover;background-position:center;";
+      avatarContent = "";
+      avatarClass = "comment-avatar comment-avatar--img";
+    } else {
+      avatarStyle = "background:" + levelColor + ";";
+      avatarContent = MD3.escapeHtml(comment.username.charAt(0).toUpperCase());
+      avatarClass = "comment-avatar";
+    }
+
+    // Reply-to indicator
+    var replyToHtml = "";
+    if (comment.replyToUsername) {
+      replyToHtml = '<a class="comment-reply-to" href="/profile.html?u=' + encodeURIComponent(comment.replyToUsername) + '">@' + MD3.escapeHtml(comment.replyToUsername) + '</a>';
+    }
+
+    // Parse @mentions in content
+    var contentHtml = parseMentions(comment.content);
+
+    var html =
+      '<div class="comment-item' + ownClass + '" style="--depth:' + depth + ';">' +
+      '<div class="comment-item__header">' +
+      '<a class="' + avatarClass + '" href="/profile.html?u=' + encodeURIComponent(comment.username) + '" style="' + avatarStyle + '">' + avatarContent + '</a>' +
+      '<a class="comment-username" href="/profile.html?u=' + encodeURIComponent(comment.username) + '">' + MD3.escapeHtml(comment.username) + '</a>' +
+      '<span class="comment-level-badge" style="background:' + levelColor + ';">Lv.' + comment.userLevel + '</span>' +
+      '<span class="comment-time">' + MD3.timeAgo(comment.createdAt) + '</span>' +
+      (canDelete ? '<button class="comment-delete-btn" data-comment-id="' + comment.id + '">' + t("comments.delete") + '</button>' : '') +
+      '</div>' +
+      '<p class="comment-content">' + replyToHtml + contentHtml + '</p>' +
+      (window.Auth && Auth.isLoggedIn() ? '<button class="comment-reply-btn" data-comment-id="' + comment.id + '" data-username="' + MD3.escapeHtml(comment.username) + '">' + t("comments.reply") + '</button>' : '') +
+      '</div>';
+
+    // Render nested replies
+    var replies = repliesMap[comment.id] || [];
+    if (replies.length > 0) {
+      html += '<div class="comment-replies">';
+      replies.forEach(function (r) {
+        html += renderCommentItem(r, repliesMap, depth + 1);
+      });
+      html += '</div>';
+    }
+
+    return html;
+  }
+
+  function parseMentions(text) {
+    var escaped = MD3.escapeHtml(text);
+    return escaped.replace(/@([a-zA-Z0-9_\-]+)/g, function (match, username) {
+      return '<a class="mention" href="/profile.html?u=' + encodeURIComponent(username) + '">@' + MD3.escapeHtml(username) + '</a>';
+    });
+  }
+
+  function setReplyTo(commentId, username) {
+    replyToId = commentId;
+    replyToUsername = username;
+    var input = document.getElementById("commentInput");
+    if (input) {
+      input.value = "@" + username + " ";
+      input.focus();
+    }
+    var indicator = document.getElementById("replyIndicator");
+    if (indicator) {
+      indicator.style.display = "";
+      var nameEl = indicator.querySelector(".reply-indicator__name");
+      if (nameEl) nameEl.textContent = username;
+    }
+  }
+
+  function clearReplyTo() {
+    replyToId = null;
+    replyToUsername = null;
+    var indicator = document.getElementById("replyIndicator");
+    if (indicator) indicator.style.display = "none";
+    var input = document.getElementById("commentInput");
+    if (input) input.value = "";
   }
 
   async function submitComment() {
@@ -424,12 +525,17 @@
     submitBtn.textContent = "...";
 
     try {
+      var body = { content: content };
+      if (replyToId) {
+        body.parentId = replyToId;
+        body.replyTo = replyToUsername;
+      }
       await MD3.api("/posts/" + encodeURIComponent(currentSlug) + "/comments", {
         method: "POST",
-        body: { content: content },
+        body: body,
       });
 
-      input.value = "";
+      clearReplyTo();
       MD3.showSnackbar(t("comments.posted"));
       loadComments(currentSlug);
 
@@ -461,5 +567,53 @@
     } catch (e) {
       MD3.showSnackbar(t("msg.error_prefix") + e.message);
     }
+  }
+
+  // ===== Like Button =====
+  function initLikeButton(post) {
+    var likeBtn = document.getElementById("likeBtn");
+    var likeCount = document.getElementById("likeCount");
+    if (!likeBtn || !likeCount) return;
+
+    likeCount.textContent = post.likeCount || 0;
+
+    // Check if current user has liked this post
+    if (window.Auth && Auth.isLoggedIn()) {
+      MD3.api("/posts/" + encodeURIComponent(post.slug) + "/like")
+        .then(function (data) {
+          if (data.liked) {
+            likeBtn.classList.add("like-btn--active");
+          }
+          likeCount.textContent = data.likeCount || 0;
+        })
+        .catch(function () {});
+    }
+
+    likeBtn.addEventListener("click", async function () {
+      if (!window.Auth || !Auth.isLoggedIn()) {
+        MD3.showSnackbar(t("like.login_required"));
+        return;
+      }
+
+      likeBtn.disabled = true;
+      try {
+        var data = await MD3.api("/posts/" + encodeURIComponent(post.slug) + "/like", {
+          method: "POST",
+        });
+        likeCount.textContent = data.likeCount;
+        if (data.liked) {
+          likeBtn.classList.add("like-btn--active", "like-btn--pop");
+          setTimeout(function () {
+            likeBtn.classList.remove("like-btn--pop");
+          }, 400);
+        } else {
+          likeBtn.classList.remove("like-btn--active");
+        }
+      } catch (e) {
+        MD3.showSnackbar(t("msg.error_prefix") + e.message);
+      } finally {
+        likeBtn.disabled = false;
+      }
+    });
   }
 })();
