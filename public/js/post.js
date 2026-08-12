@@ -116,7 +116,7 @@
     tocHtml += '<svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M3 9v2h6V9H3zm0-4v2h6V5H3zm12 0v2h6V5h-6zm-12 8v2h6v-2H3zm12 0v2h6v-2h-6zm0 4v2h6v-2h-6z"/></svg>';
     tocHtml += '<span>' + t("post.toc") + "</span>";
     tocHtml += "</div>";
-    tocHtml += '<nav class="post-toc__nav"><ul>";
+    tocHtml += '<nav class="post-toc__nav"><ul>';
 
     headings.forEach(function (h, i) {
       var level = parseInt(h.tagName.charAt(1));
