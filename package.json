@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Material Design 3 blog with Cloudflare Workers + R2 storage",
   "scripts": {
+    "build": "tsc --noEmit",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "dry-run": "wrangler deploy --dry-run",
