@@ -106,6 +106,7 @@ const COMMENTS_PREFIX = "comments/";
 const CHECKIN_PREFIX = "checkin/";
 const POINTS_PREFIX = "points/";
 const GITHUB_PREFIX = "github/";
+const SITE_URL = "https://xn--kiv483g.online";
 
 const PBKDF2_ITERATIONS = 100000;
 const TOKEN_EXPIRY_HOURS = 72;
@@ -784,7 +785,7 @@ async function handleGithubBindRedirect(
 ): Promise<Response> {
   const user = await getAuthUser(request, env);
   if (!user) {
-    return Response.redirect("/?error=auth_required", 302);
+    return Response.redirect(`${SITE_URL}/?error=auth_required`, 302);
   }
   const state = await generateState("bind", user.id, env.JWT_SECRET);
   const params = new URLSearchParams({
@@ -810,22 +811,22 @@ async function handleGithubCallback(
   const error = url.searchParams.get("error");
 
   if (error || !code || !state) {
-    return Response.redirect("/?error=github_auth_failed", 302);
+    return Response.redirect(`${SITE_URL}/?error=github_auth_failed`, 302);
   }
 
   const stateData = await verifyState(state, env.JWT_SECRET);
   if (!stateData) {
-    return Response.redirect("/?error=invalid_state", 302);
+    return Response.redirect(`${SITE_URL}/?error=invalid_state`, 302);
   }
 
   const tokenData = await exchangeGithubCode(code, env);
   if (!tokenData) {
-    return Response.redirect("/?error=token_exchange_failed", 302);
+    return Response.redirect(`${SITE_URL}/?error=token_exchange_failed`, 302);
   }
 
   const ghUser = await getGithubUser(tokenData.access_token);
   if (!ghUser) {
-    return Response.redirect("/?error=github_user_failed", 302);
+    return Response.redirect(`${SITE_URL}/?error=github_user_failed`, 302);
   }
 
   // Check if this GitHub account is already linked to a user
@@ -834,13 +835,13 @@ async function handleGithubCallback(
   if (stateData.action === "bind") {
     // Binding mode: link GitHub to the currently logged-in user
     if (!stateData.userId) {
-      return Response.redirect("/?error=no_user_to_bind", 302);
+      return Response.redirect(`${SITE_URL}/?error=no_user_to_bind`, 302);
     }
 
     if (user) {
       // This GitHub account is already linked to another user
       return Response.redirect(
-        "/profile.html?error=github_already_bound",
+        `${SITE_URL}/profile.html?error=github_already_bound`,
         302
       );
     }
@@ -848,14 +849,14 @@ async function handleGithubCallback(
     // Fetch the user who initiated the bind
     const userObj = await env.BUCKET.get(`${USERS_PREFIX}${stateData.userId}.json`);
     if (!userObj) {
-      return Response.redirect("/?error=user_not_found", 302);
+      return Response.redirect(`${SITE_URL}/?error=user_not_found`, 302);
     }
     user = (await userObj.json()) as User;
 
     await linkGithubToUser(user, ghUser.id, ghUser.login, env);
 
     return Response.redirect(
-      `/profile.html?u=${encodeURIComponent(user.username)}&bound=github`,
+      `${SITE_URL}/profile.html?u=${encodeURIComponent(user.username)}&bound=github`,
       302
     );
   }
@@ -864,7 +865,7 @@ async function handleGithubCallback(
   if (user) {
     // Existing GitHub user — log them in
     if (user.banned) {
-      return Response.redirect("/?error=banned", 302);
+      return Response.redirect(`${SITE_URL}/?error=banned`, 302);
     }
     // Update GitHub username in case it changed
     if (user.githubUsername !== ghUser.login) {
@@ -872,7 +873,7 @@ async function handleGithubCallback(
       await saveUser(user, env);
     }
     const token = await generateToken(user, env.JWT_SECRET);
-    return Response.redirect(`/?token=${token}`, 302);
+    return Response.redirect(`${SITE_URL}/?token=${token}`, 302);
   }
 
   // New GitHub user — create account
@@ -913,7 +914,7 @@ async function handleGithubCallback(
   );
 
   const token = await generateToken(newUser, env.JWT_SECRET);
-  return Response.redirect(`/?token=${token}`, 302);
+  return Response.redirect(`${SITE_URL}/?token=${token}`, 302);
 }
 
 // DELETE /api/auth/github/unbind — unbind GitHub from current user
