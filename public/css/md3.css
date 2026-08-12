@@ -1582,6 +1582,19 @@ img {
   font-weight: 700;
   color: white;
   text-transform: uppercase;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.post-author-link {
+  color: var(--md-on-surface);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.post-author-link:hover {
+  color: var(--md-primary);
+  text-decoration: underline;
 }
 
 /* ===== Comments Section ===== */
