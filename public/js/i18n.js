@@ -58,6 +58,10 @@
       "dialog.delete": "Delete",
       "dialog.deleting": "Deleting...",
 
+      // Confirm
+      "confirm.ok": "Confirm",
+      "confirm.cancel": "Cancel",
+
       // Messages
       "msg.title_required": "Title is required",
       "msg.content_required": "Content is required",
@@ -133,6 +137,7 @@
       "comments.login_required": "Please login to comment",
       "comments.delete": "Delete",
       "comments.confirm_delete": "Delete this comment?",
+      "comments.confirm_delete_desc": "This action cannot be undone.",
       "comments.posted": "Comment posted!",
       "comments.deleted": "Comment deleted",
 
@@ -197,6 +202,7 @@
       "admin.delete": "Delete",
       "admin.no_posts": "No posts found",
       "admin.confirm_delete_post": "Delete post",
+      "admin.confirm_delete_post_desc": "This action cannot be undone.",
       "admin.post_deleted": "Post deleted",
       "admin.comment_content": "Content",
       "admin.comment_author": "Author",
@@ -205,6 +211,7 @@
       "admin.comment_actions": "Actions",
       "admin.no_comments": "No comments found",
       "admin.confirm_delete_comment": "Delete this comment",
+      "admin.confirm_delete_comment_desc": "This action cannot be undone.",
       "admin.comment_deleted": "Comment deleted"
     },
 
@@ -258,6 +265,10 @@
       "dialog.cancel": "取消",
       "dialog.delete": "删除",
       "dialog.deleting": "删除中...",
+
+      // Confirm
+      "confirm.ok": "确定",
+      "confirm.cancel": "取消",
 
       // Messages
       "msg.title_required": "标题不能为空",
@@ -334,6 +345,7 @@
       "comments.login_required": "请登录后再评论",
       "comments.delete": "删除",
       "comments.confirm_delete": "确定删除这条评论吗？",
+      "comments.confirm_delete_desc": "此操作不可撤销。",
       "comments.posted": "评论发表成功！",
       "comments.deleted": "评论已删除",
 
@@ -398,6 +410,7 @@
       "admin.delete": "删除",
       "admin.no_posts": "暂无文章",
       "admin.confirm_delete_post": "删除文章",
+      "admin.confirm_delete_post_desc": "此操作不可撤销。",
       "admin.post_deleted": "文章已删除",
       "admin.comment_content": "内容",
       "admin.comment_author": "作者",
@@ -406,6 +419,7 @@
       "admin.comment_actions": "操作",
       "admin.no_comments": "暂无评论",
       "admin.confirm_delete_comment": "删除这条评论",
+      "admin.confirm_delete_comment_desc": "此操作不可撤销。",
       "admin.comment_deleted": "评论已删除"
     }
   };

@@ -1683,12 +1683,26 @@ img {
   color: white;
   text-transform: uppercase;
   flex-shrink: 0;
+  text-decoration: none;
+  transition: opacity 0.2s, transform 0.15s;
+}
+
+a.comment-avatar:hover {
+  opacity: 0.85;
+  transform: scale(1.08);
 }
 
 .comment-username {
   font-size: var(--md-label-large-size);
   font-weight: var(--md-label-large-weight);
   color: var(--md-on-surface);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+a.comment-username:hover {
+  color: var(--md-primary);
+  text-decoration: underline;
 }
 
 .comment-level-badge {

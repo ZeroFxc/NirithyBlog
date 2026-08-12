@@ -304,10 +304,14 @@
 
       var delBtns = content.querySelectorAll(".admin-delete-btn");
       delBtns.forEach(function (btn) {
-        btn.addEventListener("click", function () {
+        btn.addEventListener("click", async function () {
           var slug = btn.getAttribute("data-slug");
           var title = btn.getAttribute("data-title");
-          if (confirm(t("admin.confirm_delete_post") + ": " + title + "?")) {
+          var confirmed = await MD3.showConfirm(
+            t("admin.confirm_delete_post"),
+            title + " — " + t("admin.confirm_delete_post_desc")
+          );
+          if (confirmed) {
             deletePostAdmin(slug);
           }
         });
@@ -382,10 +386,14 @@
 
       var delBtns = content.querySelectorAll(".admin-delete-btn");
       delBtns.forEach(function (btn) {
-        btn.addEventListener("click", function () {
+        btn.addEventListener("click", async function () {
           var slug = btn.getAttribute("data-slug");
           var id = btn.getAttribute("data-id");
-          if (confirm(t("admin.confirm_delete_comment") + "?")) {
+          var confirmed = await MD3.showConfirm(
+            t("admin.confirm_delete_comment"),
+            t("admin.confirm_delete_comment_desc")
+          );
+          if (confirmed) {
             deleteCommentAdmin(slug, id);
           }
         });

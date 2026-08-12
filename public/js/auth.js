@@ -235,7 +235,11 @@
       if (unbindGithubBtn) {
         unbindGithubBtn.addEventListener("click", async function (e) {
           e.stopPropagation();
-          if (confirm(t("auth.unbind_confirm"))) {
+          var confirmed = await MD3.showConfirm(
+            t("auth.unbind_github"),
+            t("auth.unbind_confirm")
+          );
+          if (confirmed) {
             try {
               var data = await apiCall("/auth/github/unbind", { method: "DELETE" });
               currentUser = data.user;

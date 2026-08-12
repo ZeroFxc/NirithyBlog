@@ -131,6 +131,60 @@
     dialog.classList.remove("dialog--show");
   }
 
+  // ===== Confirm Dialog (Promise-based, replaces native confirm) =====
+  let confirmResolve = null;
+
+  function showConfirm(title, message) {
+    return new Promise(function (resolve) {
+      var existing = document.getElementById("md3ConfirmDialog");
+      if (existing) existing.remove();
+
+      var scrim = document.querySelector(".dialog-scrim");
+      if (!scrim) {
+        scrim = document.createElement("div");
+        scrim.className = "dialog-scrim";
+        document.body.appendChild(scrim);
+      }
+
+      var dialog = document.createElement("div");
+      dialog.className = "dialog";
+      dialog.id = "md3ConfirmDialog";
+      dialog.style.maxWidth = "400px";
+      dialog.innerHTML =
+        '<h2 class="dialog__title">' + escapeHtml(title) + "</h2>" +
+        '<div class="dialog__content">' + escapeHtml(message) + "</div>" +
+        '<div class="dialog__actions">' +
+        '<button class="btn-text" id="md3ConfirmCancel">' +
+        (global.I18N ? I18N.t("confirm.cancel") : "Cancel") +
+        "</button>" +
+        '<button class="btn-filled" id="md3ConfirmOk">' +
+        (global.I18N ? I18N.t("confirm.ok") : "OK") +
+        "</button>" +
+        "</div>";
+
+      document.body.appendChild(dialog);
+
+      function close(result) {
+        dialog.classList.remove("dialog--show");
+        scrim.classList.remove("dialog-scrim--show");
+        if (confirmResolve) confirmResolve(result);
+        confirmResolve = null;
+        setTimeout(function () { dialog.remove(); }, 250);
+      }
+
+      confirmResolve = resolve;
+
+      requestAnimationFrame(function () {
+        scrim.classList.add("dialog-scrim--show");
+        dialog.classList.add("dialog--show");
+      });
+
+      document.getElementById("md3ConfirmOk").addEventListener("click", function () { close(true); });
+      document.getElementById("md3ConfirmCancel").addEventListener("click", function () { close(false); });
+      scrim.addEventListener("click", function () { close(false); }, { once: true });
+    });
+  }
+
   // ===== Date Formatting =====
   function formatDate(isoString) {
     var d = new Date(isoString);
@@ -246,6 +300,7 @@
     showSnackbar: showSnackbar,
     showDialog: showDialog,
     hideDialog: hideDialog,
+    showConfirm: showConfirm,
     formatDate: formatDate,
     formatDateTime: formatDateTime,
     timeAgo: timeAgo,

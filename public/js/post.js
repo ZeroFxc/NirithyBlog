@@ -308,10 +308,10 @@
       html +=
         '<div class="comment-item' + ownClass + '">' +
         '<div class="comment-item__header">' +
-        '<span class="comment-avatar" style="background:' + levelColor + ';">' +
+        '<a class="comment-avatar" href="/profile.html?u=' + encodeURIComponent(c.username) + '" style="background:' + levelColor + ';">' +
         MD3.escapeHtml(c.username.charAt(0).toUpperCase()) +
-        "</span>" +
-        '<span class="comment-username">' + MD3.escapeHtml(c.username) + "</span>" +
+        "</a>" +
+        '<a class="comment-username" href="/profile.html?u=' + encodeURIComponent(c.username) + '">' + MD3.escapeHtml(c.username) + "</a>" +
         '<span class="comment-level-badge" style="background:' + levelColor + ';">Lv.' + c.userLevel + "</span>" +
         '<span class="comment-time">' + MD3.timeAgo(c.createdAt) + "</span>" +
         (canDelete ? '<button class="comment-delete-btn" data-comment-id="' + c.id + '">' + t("comments.delete") + "</button>" : "") +
@@ -365,7 +365,11 @@
   }
 
   async function deleteComment(commentId) {
-    if (!confirm(t("comments.confirm_delete"))) return;
+    var confirmed = await MD3.showConfirm(
+      t("comments.confirm_delete"),
+      t("comments.confirm_delete_desc")
+    );
+    if (!confirmed) return;
 
     try {
       await MD3.api("/posts/" + encodeURIComponent(currentSlug) + "/comments/" + commentId, {
