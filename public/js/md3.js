@@ -227,6 +227,7 @@
     initTheme();
     initRipples();
     initAppBarShadow();
+    if (global.NavDrawer) NavDrawer.init();
     if (global.Auth) Auth.init();
   }
 

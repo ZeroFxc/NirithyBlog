@@ -39,6 +39,8 @@ interface User {
   createdAt: string;
   lastCheckin: string | null;
   checkinStreak: number;
+  role: "user" | "admin";
+  banned: boolean;
 }
 
 interface UserPublic {
@@ -53,6 +55,9 @@ interface UserPublic {
   checkinStreak: number;
   lastCheckin: string | null;
   checkedInToday: boolean;
+  role: "user" | "admin";
+  banned: boolean;
+  postCount: number;
 }
 
 interface Comment {
@@ -183,12 +188,12 @@ function getLevelInfo(points: number): {
   };
 }
 
-function toUserPublic(user: User): UserPublic {
+function toUserPublic(user: User, env?: Env): UserPublic {
   const levelInfo = getLevelInfo(user.points);
   const today = new Date().toISOString().split("T")[0];
   const checkedInToday = user.lastCheckin === today;
 
-  return {
+  const pub: UserPublic = {
     id: user.id,
     username: user.username,
     points: user.points,
@@ -200,7 +205,42 @@ function toUserPublic(user: User): UserPublic {
     checkinStreak: user.checkinStreak,
     lastCheckin: user.lastCheckin,
     checkedInToday,
+    role: user.role || "user",
+    banned: user.banned || false,
+    postCount: 0,
   };
+
+  // postCount is filled lazily by callers if env is provided
+  if (env) {
+    // fire-and-forget: callers that need postCount should call countUserPosts
+  }
+
+  return pub;
+}
+
+async function toUserPublicWithCount(
+  user: User,
+  env: Env
+): Promise<UserPublic> {
+  const pub = toUserPublic(user);
+  pub.postCount = await countUserPosts(user.id, env);
+  return pub;
+}
+
+async function countUserPosts(
+  userId: string,
+  env: Env
+): Promise<number> {
+  const listed = await env.BUCKET.list({ prefix: POSTS_PREFIX });
+  let count = 0;
+  for (const item of listed.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const post = (await obj.json()) as Post;
+    if (post.authorId === userId) count++;
+  }
+  return count;
 }
 
 // ===== Crypto =====
@@ -510,6 +550,11 @@ async function handleRegister(
   const salt = generateSalt();
   const passwordHash = await hashPassword(password, salt);
   const now = new Date().toISOString();
+
+  // First registered user becomes admin
+  const existingUsers = await env.BUCKET.list({ prefix: USERS_PREFIX, limit: 1 });
+  const isFirstUser = existingUsers.objects.length === 0;
+
   const user: User = {
     id: generateId(),
     username,
@@ -519,6 +564,8 @@ async function handleRegister(
     createdAt: now,
     lastCheckin: null,
     checkinStreak: 0,
+    role: isFirstUser ? "admin" : "user",
+    banned: false,
   };
 
   await saveUser(user, env);
@@ -569,6 +616,9 @@ async function handleCheckin(
   user: User,
   env: Env
 ): Promise<Response> {
+  if (user.banned) {
+    return json({ error: "You are banned" }, 403);
+  }
   const today = new Date().toISOString().split("T")[0];
 
   if (user.lastCheckin === today) {
@@ -693,6 +743,9 @@ async function handleCreateComment(
   user: User,
   env: Env
 ): Promise<Response> {
+  if (user.banned) {
+    return json({ error: "You are banned from commenting" }, 403);
+  }
   // Verify post exists
   const post = await getPost(postSlug, env);
   if (!post) {
@@ -783,6 +836,9 @@ async function handleCreatePost(
   user: User,
   env: Env
 ): Promise<Response> {
+  if (user.banned) {
+    return json({ error: "You are banned from posting" }, 403);
+  }
   let body: Partial<Post>;
   try {
     body = (await request.json()) as Partial<Post>;
@@ -846,8 +902,8 @@ async function handleUpdatePost(
     return json({ error: "Post not found", slug }, 404);
   }
 
-  // Only author can edit
-  if (existing.authorId !== user.id) {
+  // Only author or admin can edit
+  if (existing.authorId !== user.id && user.role !== "admin") {
     return json({ error: "You can only edit your own posts" }, 403);
   }
 
@@ -887,7 +943,8 @@ async function handleDeletePost(
     return json({ error: "Post not found", slug }, 404);
   }
 
-  if (existing.authorId !== user.id) {
+  // Admin can delete any post
+  if (existing.authorId !== user.id && user.role !== "admin") {
     return json({ error: "You can only delete your own posts" }, 403);
   }
 
@@ -947,6 +1004,208 @@ async function handleBlogInfo(env: Env): Promise<Response> {
     tagCount: tagSet.size,
     categoryCount: catSet.size,
   });
+}
+
+// ===== User Profile =====
+
+async function handleUserProfile(
+  username: string,
+  env: Env
+): Promise<Response> {
+  const user = await getUserByUsername(username, env);
+  if (!user) {
+    return json({ error: "User not found" }, 404);
+  }
+
+  const pub = await toUserPublicWithCount(user, env);
+  return json({ user: pub });
+}
+
+async function handleUserPosts(
+  username: string,
+  env: Env
+): Promise<Response> {
+  const user = await getUserByUsername(username, env);
+  if (!user) {
+    return json({ error: "User not found" }, 404);
+  }
+
+  const allPosts = await listPosts(env);
+  const userPosts = allPosts.filter((p) => p.authorId === user.id);
+  return json({ posts: userPosts, total: userPosts.length });
+}
+
+async function handleUserComments(
+  username: string,
+  env: Env
+): Promise<Response> {
+  const user = await getUserByUsername(username, env);
+  if (!user) {
+    return json({ error: "User not found" }, 404);
+  }
+
+  // Scan all comment prefixes
+  const listed = await env.BUCKET.list({ prefix: COMMENTS_PREFIX });
+  const comments: Comment[] = [];
+  for (const item of listed.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const comment = (await obj.json()) as Comment;
+    if (comment.userId === user.id) comments.push(comment);
+  }
+
+  comments.sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  return json({ comments, total: comments.length });
+}
+
+// ===== Admin Handlers =====
+
+async function requireAdmin(
+  request: Request,
+  env: Env
+): Promise<User | null> {
+  const user = await getAuthUser(request, env);
+  if (!user) return null;
+  if (user.role !== "admin") return null;
+  return user;
+}
+
+function adminAuthFail(): Response {
+  return json({ error: "Admin access required" }, 403);
+}
+
+async function handleAdminStats(env: Env): Promise<Response> {
+  const listedUsers = await env.BUCKET.list({ prefix: USERS_PREFIX });
+  const listedPosts = await env.BUCKET.list({ prefix: POSTS_PREFIX });
+  const listedComments = await env.BUCKET.list({ prefix: COMMENTS_PREFIX });
+  const today = new Date().toISOString().split("T")[0];
+
+  let checkinToday = 0;
+  let totalUsers = 0;
+  for (const item of listedUsers.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const user = (await obj.json()) as User;
+    totalUsers++;
+    if (user.lastCheckin === today) checkinToday++;
+  }
+
+  let totalPosts = 0;
+  for (const item of listedPosts.objects) {
+    if (item.key.endsWith(".json")) totalPosts++;
+  }
+
+  let totalComments = 0;
+  for (const item of listedComments.objects) {
+    if (item.key.endsWith(".json")) totalComments++;
+  }
+
+  return json({
+    totalUsers,
+    totalPosts,
+    totalComments,
+    checkinToday,
+  });
+}
+
+async function handleAdminListUsers(env: Env): Promise<Response> {
+  const listed = await env.BUCKET.list({ prefix: USERS_PREFIX });
+  const users: UserPublic[] = [];
+
+  for (const item of listed.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const user = (await obj.json()) as User;
+    users.push(await toUserPublicWithCount(user, env));
+  }
+
+  users.sort((a, b) => b.points - a.points);
+  return json({ users, total: users.length });
+}
+
+async function handleAdminUpdateUser(
+  userId: string,
+  request: Request,
+  env: Env
+): Promise<Response> {
+  let body: { role?: string; banned?: boolean };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const obj = await env.BUCKET.get(`${USERS_PREFIX}${userId}.json`);
+  if (!obj) {
+    return json({ error: "User not found" }, 404);
+  }
+  const user = (await obj.json()) as User;
+
+  if (body.role !== undefined) {
+    if (body.role === "admin" || body.role === "user") {
+      user.role = body.role;
+    }
+  }
+  if (body.banned !== undefined) {
+    user.banned = body.banned;
+  }
+
+  await saveUser(user, env);
+  return json({ user: toUserPublic(user) });
+}
+
+async function handleAdminDeletePost(
+  slug: string,
+  env: Env
+): Promise<Response> {
+  const existing = await getPost(slug, env);
+  if (!existing) {
+    return json({ error: "Post not found" }, 404);
+  }
+  await deletePost(slug, env);
+  return json({ success: true, slug });
+}
+
+async function handleAdminListComments(env: Env): Promise<Response> {
+  const listed = await env.BUCKET.list({ prefix: COMMENTS_PREFIX });
+  const comments: (Comment & { postTitle?: string })[] = [];
+
+  for (const item of listed.objects) {
+    if (!item.key.endsWith(".json")) continue;
+    const obj = await env.BUCKET.get(item.key);
+    if (!obj) continue;
+    const comment = (await obj.json()) as Comment;
+    // Fetch post title for context
+    const post = await getPost(comment.postSlug, env);
+    comments.push({ ...comment, postTitle: post?.title });
+  }
+
+  comments.sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  return json({ comments, total: comments.length });
+}
+
+async function handleAdminDeleteComment(
+  postSlug: string,
+  commentId: string,
+  env: Env
+): Promise<Response> {
+  const comment = await getComment(postSlug, commentId, env);
+  if (!comment) {
+    return json({ error: "Comment not found" }, 404);
+  }
+  await deleteComment(postSlug, commentId, env);
+  return json({ success: true });
 }
 
 // ===== Router =====
@@ -1065,7 +1324,80 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
     const commentId = decodeURIComponent(commentDeleteMatch[2]);
     const user = await getAuthUser(request, env);
     if (!user) return json({ error: "Login required" }, 401);
+
+    // Admin can delete any comment
+    if (user.role === "admin") {
+      return handleAdminDeleteComment(postSlug, commentId, env);
+    }
+
     return handleDeleteComment(postSlug, commentId, user, env);
+  }
+
+  // ===== User Profile (public) =====
+
+  const userProfileMatch = path.match(/^\/users\/([^/]+)$/);
+  if (userProfileMatch && method === "GET") {
+    const username = decodeURIComponent(userProfileMatch[1]);
+    return handleUserProfile(username, env);
+  }
+
+  const userPostsMatch = path.match(/^\/users\/([^/]+)\/posts$/);
+  if (userPostsMatch && method === "GET") {
+    const username = decodeURIComponent(userPostsMatch[1]);
+    return handleUserPosts(username, env);
+  }
+
+  const userCommentsMatch = path.match(/^\/users\/([^/]+)\/comments$/);
+  if (userCommentsMatch && method === "GET") {
+    const username = decodeURIComponent(userCommentsMatch[1]);
+    return handleUserComments(username, env);
+  }
+
+  // ===== Admin routes =====
+
+  if (path === "/admin/stats" && method === "GET") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    return handleAdminStats(env);
+  }
+
+  if (path === "/admin/users" && method === "GET") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    return handleAdminListUsers(env);
+  }
+
+  const adminUserMatch = path.match(/^\/admin\/users\/([^/]+)$/);
+  if (adminUserMatch && method === "PUT") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    const userId = decodeURIComponent(adminUserMatch[1]);
+    return handleAdminUpdateUser(userId, request, env);
+  }
+
+  const adminPostDeleteMatch = path.match(/^\/admin\/posts\/([^/]+)$/);
+  if (adminPostDeleteMatch && method === "DELETE") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    const slug = decodeURIComponent(adminPostDeleteMatch[1]);
+    return handleAdminDeletePost(slug, env);
+  }
+
+  if (path === "/admin/comments" && method === "GET") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    return handleAdminListComments(env);
+  }
+
+  const adminCommentDeleteMatch = path.match(
+    /^\/admin\/comments\/([^/]+)\/([^/]+)$/
+  );
+  if (adminCommentDeleteMatch && method === "DELETE") {
+    const admin = await requireAdmin(request, env);
+    if (!admin) return adminAuthFail();
+    const postSlug = decodeURIComponent(adminCommentDeleteMatch[1]);
+    const commentId = decodeURIComponent(adminCommentDeleteMatch[2]);
+    return handleAdminDeleteComment(postSlug, commentId, env);
   }
 
   return json({ error: "Endpoint not found", path, method }, 404);
