@@ -1,0 +1,16 @@
+{
+  "name": "md3-blog",
+  "version": "1.0.0",
+  "description": "Material Design 3 blog with Cloudflare Workers + R2 storage",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "dry-run": "wrangler deploy --dry-run",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260804.1",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,20 @@
+name = "md3-blog"
+main = "src/index.ts"
+compatibility_date = "2026-08-11"
+
+# Static Assets - 静态前端文件
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# API 路由先经过 Worker 处理
+run_worker_first = ["/api/*"]
+
+# R2 存储绑定 - 博客文章数据
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "md3-blog-storage"
+
+# 环境变量
+[vars]
+BLOG_TITLE = "MD3 Blog"
+BLOG_DESCRIPTION = "Material Design 3 Blog on Cloudflare Workers + R2"

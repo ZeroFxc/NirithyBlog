@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor - MD3 Blog</title>
+  <link rel="stylesheet" href="/css/md3.css">
+  <style>
+    .editor-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 900px) {
+      .editor-layout {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .preview-area {
+      background-color: var(--md-surface-container-low);
+      border-radius: var(--md-shape-md);
+      padding: 24px;
+      min-height: 400px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .preview-area h1, .preview-area h2, .preview-area h3 {
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+    .preview-area p {
+      margin-bottom: 12px;
+    }
+    .preview-area pre {
+      background-color: var(--md-surface-container);
+      border-radius: var(--md-shape-sm);
+      padding: 12px;
+      overflow-x: auto;
+      margin: 12px 0;
+      font-family: var(--md-font-mono);
+      font-size: var(--md-body-medium-size);
+    }
+    .preview-area code {
+      font-family: var(--md-font-mono);
+      font-size: 0.875em;
+      background-color: var(--md-surface-container-high);
+      padding: 2px 6px;
+      border-radius: var(--md-shape-xs);
+    }
+    .preview-area pre code {
+      background: none;
+      padding: 0;
+    }
+    .preview-area blockquote {
+      border-left: 4px solid var(--md-primary);
+      padding-left: 16px;
+      margin: 12px 0;
+      color: var(--md-on-surface-variant);
+    }
+    .preview-area ul, .preview-area ol {
+      padding-left: 24px;
+      margin-bottom: 12px;
+    }
+    .preview-area img {
+      border-radius: var(--md-shape-md);
+      max-width: 100%;
+    }
+    .preview-area a {
+      color: var(--md-primary);
+    }
+    .preview-area table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .preview-area th, .preview-area td {
+      padding: 8px 12px;
+      border: 1px solid var(--md-outline-variant);
+    }
+    .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--md-shape-xs);
+      border: none;
+      background: transparent;
+      color: var(--md-on-surface-variant);
+      cursor: pointer;
+      transition: background-color var(--md-duration-short3) var(--md-easing-standard);
+    }
+    .toolbar-btn:hover {
+      background-color: color-mix(in srgb, var(--md-on-surface) 8%, transparent);
+    }
+    .toolbar-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Bar -->
+  <header class="app-bar" id="appBar">
+    <button class="icon-button" onclick="window.location.href='/'" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </button>
+    <span class="app-bar__title" id="editorTitle">New Post</span>
+    <div class="app-bar__actions">
+      <button class="btn-filled" id="saveBtn">Save</button>
+      <button class="icon-button" id="themeToggle" aria-label="Toggle theme">
+        <svg id="themeIconLight" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 0 0 0-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+        <svg id="themeIconDark" viewBox="0 0 24 24" style="display:none"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26a5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- Title -->
+    <div class="editor-section">
+      <label class="editor-section__label" for="titleInput">Title</label>
+      <div class="text-field">
+        <input type="text" class="text-field__input" id="titleInput" placeholder="Enter post title..." style="font-size: 22px; font-weight: 500;">
+      </div>
+    </div>
+
+    <!-- Category & Slug -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;" class="editor-section">
+      <div>
+        <label class="editor-section__label" for="categoryInput">Category</label>
+        <div class="text-field">
+          <input type="text" class="text-field__input" id="categoryInput" placeholder="e.g. Technology" list="categoryList">
+          <datalist id="categoryList"></datalist>
+        </div>
+      </div>
+      <div>
+        <label class="editor-section__label" for="slugInput">Slug (URL)</label>
+        <div class="text-field">
+          <input type="text" class="text-field__input" id="slugInput" placeholder="auto-generated-if-empty">
+        </div>
+      </div>
+    </div>
+
+    <!-- Tags -->
+    <div class="editor-section">
+      <label class="editor-section__label">Tags</label>
+      <div class="tags-input" id="tagsInputContainer">
+        <input type="text" class="tags-input__input" id="tagsInput" placeholder="Type a tag and press Enter...">
+      </div>
+    </div>
+
+    <!-- Markdown Editor with Preview -->
+    <div class="editor-section">
+      <label class="editor-section__label">Content (Markdown)</label>
+
+      <!-- Toolbar -->
+      <div class="editor-toolbar">
+        <button class="toolbar-btn" data-md="heading" title="Heading">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="bold" title="Bold">
+          <svg viewBox="0 0 24 24"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 7h3c.83 0 1.5.67 1.5 1.5S13.83 10 13 10h-3V7zm3 10h-3v-4h3c.83 0 1.5.67 1.5 1.5S13.83 17 13 17z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="italic" title="Italic">
+          <svg viewBox="0 0 24 24"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>
+        </button>
+        <div class="editor-divider"></div>
+        <button class="toolbar-btn" data-md="quote" title="Quote">
+          <svg viewBox="0 0 24 24"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="code" title="Code">
+          <svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="link" title="Link">
+          <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="list" title="List">
+          <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="ordered-list" title="Ordered List">
+          <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" opacity="0"/></svg>
+        </button>
+        <div class="editor-divider"></div>
+        <button class="toolbar-btn" data-md="image" title="Image">
+          <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        </button>
+        <button class="toolbar-btn" data-md="table" title="Table">
+          <svg viewBox="0 0 24 24"><path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 2v3H4V5h16zm-8 8H4v-3h8v3zm0 5H4v-3h8v3zm2-3v-3h6v3h-6zm0-5v-3h6v3h-6z"/></svg>
+        </button>
+      </div>
+
+      <!-- Editor Layout -->
+      <div class="editor-layout">
+        <div>
+          <textarea class="text-field__textarea" id="contentInput" placeholder="Write your post in Markdown..." style="min-height: 400px; border-top: none; border-radius: 0 0 var(--md-shape-xs) var(--md-shape-xs); font-family: var(--md-font-mono); font-size: var(--md-body-medium-size); line-height: 1.6;"></textarea>
+        </div>
+        <div>
+          <div class="preview-area" id="previewArea">
+            <p style="color: var(--md-on-surface-variant); opacity: 0.5;">Preview will appear here...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Snackbar -->
+  <div class="snackbar" id="snackbar">
+    <span id="snackbarText"></span>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/js/md3.js"></script>
+  <script src="/js/editor.js"></script>
+</body>
+</html>
