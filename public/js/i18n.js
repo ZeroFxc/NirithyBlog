@@ -110,6 +110,12 @@
       "auth.github_unbound": "GitHub account unbound",
       "auth.github_failed": "GitHub authentication failed",
       "auth.github_already_bound": "This GitHub account is already linked to another user",
+      "auth.auth_required": "Please log in first",
+      "auth.invalid_state": "Invalid state, please try again",
+      "auth.token_exchange_failed": "GitHub token exchange failed",
+      "auth.github_user_failed": "Failed to get GitHub user info",
+      "auth.no_user_to_bind": "No user to bind, please log in first",
+      "auth.user_not_found": "User not found",
       "auth.banned": "Your account has been banned",
 
       // Check-in
@@ -305,6 +311,12 @@
       "auth.github_unbound": "GitHub 账号已解绑",
       "auth.github_failed": "GitHub 认证失败",
       "auth.github_already_bound": "该 GitHub 账号已绑定其他用户",
+      "auth.auth_required": "请先登录",
+      "auth.invalid_state": "状态无效，请重试",
+      "auth.token_exchange_failed": "GitHub Token 交换失败",
+      "auth.github_user_failed": "获取 GitHub 用户信息失败",
+      "auth.no_user_to_bind": "无用户可绑定，请先登录",
+      "auth.user_not_found": "用户不存在",
       "auth.banned": "你的账号已被封禁",
 
       // Check-in

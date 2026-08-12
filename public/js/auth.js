@@ -101,6 +101,11 @@
           if (global.MD3 && MD3.showSnackbar) {
             MD3.showSnackbar(t("auth." + urlError) || t("auth.github_failed"));
           }
+          // Auto-open login dialog for auth-related errors
+          if (urlError === "auth_required" || urlError === "no_user_to_bind") {
+            var loginDialog = document.getElementById("authDialog");
+            if (loginDialog) loginDialog.showModal();
+          }
         }, 500);
         var cleanUrl2 = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl2);
