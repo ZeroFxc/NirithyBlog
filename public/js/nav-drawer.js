@@ -38,7 +38,7 @@
       "</a>";
 
     // Profile (if logged in)
-    if (global.Auth && Auth.isLoggedIn()) {
+    if (global.Auth && Auth.isLoggedIn() && Auth.getUser()) {
       var user = Auth.getUser();
       html +=
         '<a class="nav-drawer__item" href="/profile.html?u=' +
@@ -69,7 +69,7 @@
     }
 
     // New Post (if logged in)
-    if (global.Auth && Auth.isLoggedIn()) {
+    if (global.Auth && Auth.isLoggedIn() && Auth.getUser()) {
       html +=
         '<a class="nav-drawer__item" href="/editor.html" data-i18n="nav.new_post">' +
         '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>' +
@@ -161,6 +161,17 @@
       menuBtn.addEventListener("click", function (e) {
         e.stopPropagation();
         NavDrawer.toggle();
+      });
+    }
+
+    // After Auth finishes async init, rebuild drawer with correct user info
+    if (global.Auth && Auth.ready) {
+      Auth.ready().then(function () {
+        var c = document.getElementById("navDrawerContainer");
+        if (c) {
+          c.innerHTML = buildDrawerHTML();
+          NavDrawer.bindEvents();
+        }
       });
     }
 

@@ -94,6 +94,7 @@
       }
       Auth.updateUI();
       Auth.bindEvents();
+      window.dispatchEvent(new CustomEvent("authChanged", { detail: { user: currentUser } }));
     })();
     return Auth._initPromise;
   };
