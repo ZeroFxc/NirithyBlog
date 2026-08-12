@@ -354,10 +354,19 @@ async function getAuthUser(
   request: Request,
   env: Env
 ): Promise<User | null> {
+  // Try Authorization header first
+  let token: string | null = null;
   const auth = request.headers.get("Authorization");
-  if (!auth || !auth.startsWith("Bearer ")) return null;
+  if (auth && auth.startsWith("Bearer ")) {
+    token = auth.substring(7);
+  }
+  // Fallback: query parameter (?token=...)
+  if (!token) {
+    const url = new URL(request.url);
+    token = url.searchParams.get("token");
+  }
+  if (!token) return null;
 
-  const token = auth.substring(7);
   const payload = await verifyToken(token, env.JWT_SECRET);
   if (!payload) return null;
 

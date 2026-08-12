@@ -186,10 +186,10 @@
             '<svg viewBox="0 0 24 24"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.41-1.27.74-1.56-2.55-.29-5.23-1.28-5.23-5.67 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.4-2.69 5.38-5.25 5.66.42.36.8 1.08.8 2.18v3.23c0 .31.21.67.8.56C20.21 21.38 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>' +
             "<span>" + t("auth.unbind_github") + " (" + Auth.escapeHtml(currentUser.githubUsername) + ")</span>" +
             "</button>" :
-            '<a class="user-menu__item" href="/api/auth/github/bind">' +
+            '<button class="user-menu__item" id="bindGithubBtn">' +
             '<svg viewBox="0 0 24 24"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.41-1.27.74-1.56-2.55-.29-5.23-1.28-5.23-5.67 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.4-2.69 5.38-5.25 5.66.42.36.8 1.08.8 2.18v3.23c0 .31.21.67.8.56C20.21 21.38 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>' +
             "<span>" + t("auth.bind_github") + "</span>" +
-            "</a>"
+            "</button>"
           ) +
           (currentUser.role === "admin" ?
             '<a class="user-menu__item" href="/admin.html">' +
@@ -251,6 +251,22 @@
               }
             }
           }
+        });
+      }
+
+      // Bind GitHub - redirect to OAuth with token
+      var bindGithubBtn = document.getElementById("bindGithubBtn");
+      if (bindGithubBtn) {
+        bindGithubBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var token = Auth.getToken();
+          if (!token) {
+            if (global.MD3 && MD3.showSnackbar) {
+              MD3.showSnackbar(t("auth.auth_required"));
+            }
+            return;
+          }
+          window.location.href = "/api/auth/github/bind?token=" + encodeURIComponent(token);
         });
       }
     } else {
