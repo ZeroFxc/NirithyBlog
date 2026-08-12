@@ -9,6 +9,13 @@
   var editMode = false;
   var currentSlug = null;
   var tags = [];
+  var isSaving = false;
+
+  // ===== i18n helper =====
+  function t(key) {
+    if (window.I18N) return I18N.t(key);
+    return key;
+  }
 
   // ===== Init =====
   document.addEventListener("DOMContentLoaded", function () {
@@ -17,8 +24,7 @@
     editMode = !!currentSlug;
 
     // Update title
-    var titleEl = document.getElementById("editorTitle");
-    if (titleEl) titleEl.textContent = editMode ? "Edit Post" : "New Post";
+    updateEditorTitle();
 
     // Configure marked
     if (typeof marked !== "undefined") {
@@ -39,7 +45,35 @@
     initTagsInput();
     initSave();
     initSlugAutogen();
+    initLangListener();
   });
+
+  // ===== Listen for language change =====
+  function initLangListener() {
+    window.addEventListener("languageChanged", function () {
+      updateEditorTitle();
+      // Re-render preview placeholder if empty
+      var textarea = document.getElementById("contentInput");
+      if (textarea && !textarea.value.trim()) {
+        var preview = document.getElementById("previewArea");
+        if (preview) {
+          preview.innerHTML =
+            '<p style="color: var(--md-on-surface-variant); opacity: 0.5;">' + t("editor.preview_placeholder") + '</p>';
+        }
+      }
+      // Update save button if not saving
+      if (!isSaving) {
+        var saveBtn = document.getElementById("saveBtn");
+        if (saveBtn) saveBtn.textContent = t("editor.save");
+      }
+    });
+  }
+
+  // ===== Update editor title =====
+  function updateEditorTitle() {
+    var titleEl = document.getElementById("editorTitle");
+    if (titleEl) titleEl.textContent = editMode ? t("editor.edit_post") : t("editor.new_post");
+  }
 
   // ===== Load Post (Edit Mode) =====
   async function loadPost(slug) {
@@ -57,7 +91,7 @@
 
       updatePreview();
     } catch (e) {
-      MD3.showSnackbar("Error loading post: " + e.message);
+      MD3.showSnackbar(t("msg.error_prefix") + e.message);
     }
   }
 
@@ -156,7 +190,7 @@
     var content = textarea.value.trim();
     if (!content) {
       preview.innerHTML =
-        '<p style="color: var(--md-on-surface-variant); opacity: 0.5;">Preview will appear here...</p>';
+        '<p style="color: var(--md-on-surface-variant); opacity: 0.5;">' + t("editor.preview_placeholder") + '</p>';
       return;
     }
 
@@ -250,25 +284,26 @@
 
     saveBtn.addEventListener("click", async function () {
       var title = document.getElementById("titleInput").value.trim();
-      var category = document.getElementById("categoryInput").value.trim() || "Uncategorized";
+      var category = document.getElementById("categoryInput").value.trim() || t("post.uncategorized");
       var slug = document.getElementById("slugInput").value.trim();
       var content = document.getElementById("contentInput").value;
 
       // Validation
       if (!title) {
-        MD3.showSnackbar("Title is required");
+        MD3.showSnackbar(t("msg.title_required"));
         document.getElementById("titleInput").focus();
         return;
       }
 
       if (!content.trim()) {
-        MD3.showSnackbar("Content is required");
+        MD3.showSnackbar(t("msg.content_required"));
         document.getElementById("contentInput").focus();
         return;
       }
 
       // Disable button
-      saveBtn.textContent = "Saving...";
+      isSaving = true;
+      saveBtn.textContent = t("editor.saving");
       saveBtn.disabled = true;
 
       var body = {
@@ -289,13 +324,13 @@
             method: "PUT",
             body: body,
           });
-          MD3.showSnackbar("Post updated successfully");
+          MD3.showSnackbar(t("msg.post_updated"));
         } else {
           data = await MD3.api("/posts", {
             method: "POST",
             body: body,
           });
-          MD3.showSnackbar("Post created successfully");
+          MD3.showSnackbar(t("msg.post_created"));
         }
 
         // Redirect to post page
@@ -304,8 +339,9 @@
           window.location.href = "/post?slug=" + encodeURIComponent(newSlug);
         }, 800);
       } catch (e) {
-        MD3.showSnackbar("Error: " + e.message);
-        saveBtn.textContent = "Save";
+        MD3.showSnackbar(t("msg.error_prefix") + e.message);
+        isSaving = false;
+        saveBtn.textContent = t("editor.save");
         saveBtn.disabled = false;
       }
     });

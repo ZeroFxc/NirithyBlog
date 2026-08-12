@@ -169,13 +169,15 @@
     var then = new Date(isoString).getTime();
     var diff = Math.floor((now - then) / 1000);
 
-    if (diff < 60) return "just now";
-    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-    if (diff < 604800) return Math.floor(diff / 86400) + "d ago";
-    if (diff < 2592000) return Math.floor(diff / 604800) + "w ago";
-    if (diff < 31536000) return Math.floor(diff / 2592000) + "mo ago";
-    return Math.floor(diff / 31536000) + "y ago";
+    var t = (global.I18N) ? I18N.t : function(k) { return k; };
+
+    if (diff < 60) return t("time.just_now");
+    if (diff < 3600) return Math.floor(diff / 60) + t("time.m_ago");
+    if (diff < 86400) return Math.floor(diff / 3600) + t("time.h_ago");
+    if (diff < 604800) return Math.floor(diff / 86400) + t("time.d_ago");
+    if (diff < 2592000) return Math.floor(diff / 604800) + t("time.w_ago");
+    if (diff < 31536000) return Math.floor(diff / 2592000) + t("time.mo_ago");
+    return Math.floor(diff / 31536000) + t("time.y_ago");
   }
 
   // ===== API Helper =====
@@ -216,6 +218,7 @@
 
   // ===== Initialize on DOM Ready =====
   function init() {
+    if (global.I18N) I18N.initLanguage();
     initTheme();
     initRipples();
     initAppBarShadow();

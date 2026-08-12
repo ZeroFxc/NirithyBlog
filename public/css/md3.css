@@ -1277,3 +1277,84 @@ img {
   background-color: var(--md-primary);
   color: var(--md-on-primary);
 }
+
+/* ===== Footer ===== */
+.blog-footer {
+  margin-top: 64px;
+  padding: 32px 24px;
+  background-color: var(--md-surface-container);
+  border-top: 1px solid var(--md-outline-variant);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.blog-footer__links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.blog-footer__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--md-on-surface-variant);
+  font-size: var(--md-body-medium-size);
+  text-decoration: none;
+  transition: color var(--md-duration-short3) var(--md-easing-standard);
+  position: relative;
+  overflow: hidden;
+}
+
+.blog-footer__link:hover {
+  color: var(--md-primary);
+  text-decoration: none;
+}
+
+.blog-footer__link svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.blog-footer__text {
+  font-size: var(--md-body-small-size);
+  color: var(--md-on-surface-variant);
+  opacity: 0.7;
+}
+
+/* ===== Language Toggle Button ===== */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-width: 48px;
+  padding: 0 12px;
+  border-radius: var(--md-shape-full);
+  border: 1px solid var(--md-outline);
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-family: inherit;
+  font-size: var(--md-label-large-size);
+  font-weight: var(--md-label-large-weight);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background-color var(--md-duration-short3) var(--md-easing-standard),
+              color var(--md-duration-short3) var(--md-easing-standard);
+  flex-shrink: 0;
+}
+
+.lang-toggle:hover {
+  background-color: color-mix(in srgb, var(--md-on-surface) 8%, transparent);
+}
+
+.lang-toggle:active {
+  background-color: color-mix(in srgb, var(--md-on-surface) 12%, transparent);
+}

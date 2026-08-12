@@ -11,19 +11,37 @@
   var allCategories = [];
   var currentFilter = { type: "all", value: "all" };
 
+  // ===== i18n helper =====
+  function t(key) {
+    if (window.I18N) return I18N.t(key);
+    return key;
+  }
+
   // ===== Init =====
   document.addEventListener("DOMContentLoaded", function () {
     loadBlogInfo();
     loadPosts();
     initSearch();
     initFab();
+    initLangListener();
   });
+
+  // ===== Listen for language change =====
+  function initLangListener() {
+    window.addEventListener("languageChanged", function () {
+      renderFilters();
+      renderPosts();
+      if (allPosts.length === 0) {
+        renderEmptyState();
+      }
+    });
+  }
 
   // ===== Load Blog Info =====
   async function loadBlogInfo() {
     try {
       var data = await MD3.api("/info");
-      document.title = data.title + " - MD3 Blog";
+      document.title = data.title + " - " + t("app.title");
       var titleEl = document.getElementById("blogTitle");
       if (titleEl) titleEl.textContent = data.title;
     } catch (e) {
@@ -43,10 +61,10 @@
       var tagSet = {};
       var catSet = {};
       allPosts.forEach(function (p) {
-        (p.tags || []).forEach(function (t) {
-          tagSet[t] = (tagSet[t] || 0) + 1;
+        (p.tags || []).forEach(function (tag) {
+          tagSet[tag] = (tagSet[tag] || 0) + 1;
         });
-        var cat = p.category || "Uncategorized";
+        var cat = p.category || t("post.uncategorized");
         catSet[cat] = (catSet[cat] || 0) + 1;
       });
 
@@ -63,9 +81,9 @@
       container.innerHTML =
         '<div class="empty-state">' +
         '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/></svg></div>' +
-        '<h2 class="empty-state__title">Failed to load</h2>' +
+        '<h2 class="empty-state__title">' + t("empty.failed_title") + '</h2>' +
         '<p class="empty-state__description">' + MD3.escapeHtml(e.message) + "</p>" +
-        '<button class="btn-tonal" onclick="location.reload()">Retry</button>' +
+        '<button class="btn-tonal" onclick="location.reload()">' + t("empty.retry") + '</button>' +
         "</div>";
     }
   }
@@ -76,9 +94,9 @@
     container.innerHTML =
       '<div class="empty-state">' +
       '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/></svg></div>' +
-      '<h2 class="empty-state__title">No posts yet</h2>' +
-      '<p class="empty-state__description">Be the first to publish a post on this blog.</p>' +
-      '<button class="btn-filled" onclick="window.location.href=\'/editor\'">Write a Post</button>' +
+      '<h2 class="empty-state__title">' + t("empty.no_posts_title") + '</h2>' +
+      '<p class="empty-state__description">' + t("empty.no_posts_desc") + '</p>' +
+      '<button class="btn-filled" onclick="window.location.href=\'/editor\'">' + t("empty.write_post") + '</button>' +
       "</div>";
   }
 
@@ -87,7 +105,7 @@
     var section = document.getElementById("filterSection");
     if (!section) return;
 
-    var html = '<button class="chip chip--selected" data-filter-type="all" data-filter-value="all">All</button>';
+    var html = '<button class="chip chip--selected" data-filter-type="all" data-filter-value="all">' + t("app.filter_all") + '</button>';
 
     // Categories
     allCategories.forEach(function (cat) {
@@ -141,10 +159,12 @@
     var search = (document.getElementById("searchInput") || {}).value || "";
     search = search.toLowerCase().trim();
 
+    var uncategorized = t("post.uncategorized");
+
     var filtered = allPosts.filter(function (p) {
       // Filter by category/tag
       if (currentFilter.type === "category") {
-        if ((p.category || "Uncategorized") !== currentFilter.value) return false;
+        if ((p.category || uncategorized) !== currentFilter.value) return false;
       } else if (currentFilter.type === "tag") {
         if (!p.tags || p.tags.indexOf(currentFilter.value) === -1) return false;
       }
@@ -165,8 +185,8 @@
       container.innerHTML =
         '<div class="empty-state">' +
         '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg></div>' +
-        '<h2 class="empty-state__title">No posts found</h2>' +
-        '<p class="empty-state__description">Try adjusting your search or filters.</p>' +
+        '<h2 class="empty-state__title">' + t("empty.no_results_title") + '</h2>' +
+        '<p class="empty-state__description">' + t("empty.no_results_desc") + '</p>' +
         "</div>";
       return;
     }
@@ -175,8 +195,8 @@
     filtered.forEach(function (p, i) {
       var tagsHtml = (p.tags || [])
         .slice(0, 3)
-        .map(function (t) {
-          return '<span class="chip" style="height:24px;font-size:11px;cursor:default;padding:0 8px;">#' + MD3.escapeHtml(t) + "</span>";
+        .map(function (tag) {
+          return '<span class="chip" style="height:24px;font-size:11px;cursor:default;padding:0 8px;">#' + MD3.escapeHtml(tag) + "</span>";
         })
         .join("");
 
@@ -189,7 +209,7 @@
         '<div class="card__content">' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
         '<span style="font-size:12px;font-weight:500;color:var(--md-primary);text-transform:uppercase;letter-spacing:0.5px;">' +
-        MD3.escapeHtml(p.category || "Uncategorized") +
+        MD3.escapeHtml(p.category || uncategorized) +
         "</span>" +
         '<span style="font-size:12px;color:var(--md-on-surface-variant);">' +
         MD3.timeAgo(p.createdAt) +
