@@ -70,6 +70,18 @@
     }
   }
 
+  // ===== Render Empty State (no posts yet) =====
+  function renderEmptyState() {
+    var container = document.getElementById("postsContainer");
+    container.innerHTML =
+      '<div class="empty-state">' +
+      '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/></svg></div>' +
+      '<h2 class="empty-state__title">No posts yet</h2>' +
+      '<p class="empty-state__description">Be the first to publish a post on this blog.</p>' +
+      '<button class="btn-filled" onclick="window.location.href=\'/editor\'">Write a Post</button>' +
+      "</div>";
+  }
+
   // ===== Render Filters =====
   function renderFilters() {
     var section = document.getElementById("filterSection");
