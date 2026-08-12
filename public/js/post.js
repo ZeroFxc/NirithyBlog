@@ -1,6 +1,7 @@
 /* ============================================================
    NirithyBlog - Post Detail Page Logic
-   Load post, render markdown, edit/delete, comments
+   Load post, render markdown, TOC, reading time, cover image,
+   edit/delete, comments
    ============================================================ */
 
 (function () {
@@ -30,6 +31,7 @@
     initLangListener();
     initAuthListener();
     initComments();
+    initTocToggle();
   });
 
   // ===== Listen for auth changes =====
@@ -70,6 +72,12 @@
     }
   }
 
+  // ===== Estimate Reading Time =====
+  function estimateReadingTime(content) {
+    var charCount = (content || "").replace(/\s/g, "").length;
+    return Math.max(1, Math.ceil(charCount / 500));
+  }
+
   // ===== Load Post =====
   async function loadPost(slug) {
     var container = document.getElementById("postContainer");
@@ -94,6 +102,52 @@
     } catch (e) {
       showError(t("empty.failed_title"), e.message);
     }
+  }
+
+  // ===== Build TOC from headings =====
+  function buildTOC(container) {
+    var headings = container.querySelectorAll("h1, h2, h3");
+    if (headings.length < 2) return null;
+
+    var tocHtml = '<div class="post-toc" id="postToc">';
+    tocHtml += '<div class="post-toc__header">';
+    tocHtml += '<svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M3 9v2h6V9H3zm0-4v2h6V5H3zm12 0v2h6V5h-6zm-12 8v2h6v-2H3zm12 0v2h6v-2h-6zm0 4v2h6v-2h-6z"/></svg>';
+    tocHtml += '<span>' + t("post.toc") + "</span>";
+    tocHtml += "</div>";
+    tocHtml += '<nav class="post-toc__nav"><ul>";
+
+    headings.forEach(function (h, i) {
+      var level = parseInt(h.tagName.charAt(1));
+      var id = h.id || ("heading-" + i);
+
+      // Ensure heading has an id for anchor links
+      if (!h.id) h.id = id;
+
+      var text = h.textContent || "";
+      var indent = (level - 1) * 12;
+
+      tocHtml +=
+        '<li class="post-toc__item post-toc__item--h' + level + '" style="padding-left:' + (12 + indent) + 'px;">' +
+        '<a href="#' + encodeURIComponent(id) + '" data-heading-id="' + encodeURIComponent(id) + '">' +
+        MD3.escapeHtml(text) +
+        "</a></li>";
+    });
+
+    tocHtml += "</ul></nav></div>";
+    return tocHtml;
+  }
+
+  // ===== Init TOC Toggle (mobile) =====
+  function initTocToggle() {
+    document.addEventListener("click", function (e) {
+      var toggle = e.target.closest("#tocToggleBtn");
+      if (toggle) {
+        var toc = document.getElementById("postToc");
+        if (toc) {
+          toc.classList.toggle("post-toc--open");
+        }
+      }
+    });
   }
 
   // ===== Render Post =====
@@ -127,6 +181,16 @@
     var uncategorized = t("post.uncategorized");
     var updatedLabel = t("post.updated");
     var authorLabel = t("post.author");
+    var readingTime = estimateReadingTime(post.content || "");
+
+    // Cover image HTML
+    var coverHtml = "";
+    if (post.coverImage) {
+      coverHtml =
+        '<div class="post-detail__cover">' +
+        '<img src="' + MD3.escapeHtml(post.coverImage) + '" alt="' + MD3.escapeHtml(post.title) + '" />' +
+        "</div>";
+    }
 
     var authorHtml = "";
     if (post.authorName) {
@@ -145,7 +209,9 @@
     }
 
     container.innerHTML =
-      '<div class="fade-in">' +
+      '<div class="fade-in post-detail__layout">' +
+      '<div class="post-detail__main">' +
+      coverHtml +
       '<div class="post-detail__header">' +
       '<span class="post-detail__category">' +
       MD3.escapeHtml(post.category || uncategorized) +
@@ -159,16 +225,31 @@
       (post.updatedAt !== post.createdAt
         ? '<span style="color:var(--md-outline);">|</span><span>' + updatedLabel + ' ' + MD3.timeAgo(post.updatedAt) + "</span>"
         : "") +
+      '<span style="color:var(--md-outline);">|</span>' +
+      '<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:var(--md-on-surface-variant);"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>' +
+      '<span>' + readingTime + " " + t("post.read_time") + "</span>" +
       "</div>" +
       (authorHtml ? authorHtml : "") +
       (tagsHtml
         ? '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">' + tagsHtml + "</div>"
         : "") +
       "</div>" +
-      '<div class="post-detail__content">' +
+      '<div class="post-detail__content" id="postContent">' +
       contentHtml +
       "</div>" +
+      "</div>" +
+      '<div class="post-detail__sidebar" id="postSidebar"></div>' +
       "</div>";
+
+    // Build TOC after content is in DOM
+    var contentEl = document.getElementById("postContent");
+    if (contentEl) {
+      var tocHtml = buildTOC(contentEl);
+      var sidebar = document.getElementById("postSidebar");
+      if (tocHtml && sidebar) {
+        sidebar.innerHTML = tocHtml;
+      }
+    }
 
     MD3.initRipples();
   }

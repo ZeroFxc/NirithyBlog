@@ -136,6 +136,10 @@
       document.getElementById("slugInput").value = post.slug || "";
       document.getElementById("contentInput").value = post.content || "";
 
+      // Load cover image
+      var coverInput = document.getElementById("coverImageInput");
+      if (coverInput) coverInput.value = post.coverImage || "";
+
       tags = post.tags || [];
       renderTags();
 
@@ -364,6 +368,12 @@
         tags: tags,
         category: category,
       };
+
+      // Include cover image
+      var coverInput = document.getElementById("coverImageInput");
+      if (coverInput) {
+        body.coverImage = coverInput.value.trim() || undefined;
+      }
 
       if (slug) body.slug = slug;
 

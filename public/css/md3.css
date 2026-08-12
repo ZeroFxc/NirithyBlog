@@ -2471,3 +2471,148 @@ a.comment-username:hover {
 .profile-header__github a:hover {
   text-decoration: underline;
 }
+
+/* ===== Card Cover Image ===== */
+.card__cover {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  position: relative;
+}
+
+.card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--md-duration-medium2) var(--md-easing-standard);
+}
+
+.card:hover .card__cover img {
+  transform: scale(1.05);
+}
+
+/* ===== Post Detail Cover Image ===== */
+.post-detail__cover {
+  width: 100%;
+  max-height: 420px;
+  overflow: hidden;
+  border-radius: var(--md-shape-md);
+  margin-bottom: 24px;
+}
+
+.post-detail__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ===== Post Detail Layout (content + sidebar) ===== */
+.post-detail__layout {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.post-detail__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.post-detail__sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 80px;
+}
+
+@media (max-width: 1024px) {
+  .post-detail__layout {
+    flex-direction: column;
+  }
+  .post-detail__sidebar {
+    width: 100%;
+    position: relative;
+    top: 0;
+  }
+}
+
+/* ===== Table of Contents (TOC) ===== */
+.post-toc {
+  background-color: var(--md-surface-container-low);
+  border-radius: var(--md-shape-md);
+  padding: 16px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.post-toc__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--md-label-large-size);
+  font-weight: var(--md-label-large-weight);
+  color: var(--md-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.post-toc__nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-toc__item {
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: var(--md-shape-xs);
+  transition: background-color var(--md-duration-short3) var(--md-easing-standard);
+}
+
+.post-toc__item:hover {
+  background-color: color-mix(in srgb, var(--md-on-surface) 8%, transparent);
+}
+
+.post-toc__item a {
+  display: block;
+  color: var(--md-on-surface-variant);
+  text-decoration: none;
+  font-size: var(--md-body-small-size);
+  line-height: 1.6;
+  transition: color var(--md-duration-short3) var(--md-easing-standard);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-toc__item--h1 a {
+  font-weight: 600;
+  color: var(--md-on-surface);
+  font-size: var(--md-body-medium-size);
+}
+
+.post-toc__item--h2 a {
+  color: var(--md-on-surface);
+  font-weight: 500;
+}
+
+.post-toc__item--h3 a {
+  color: var(--md-on-surface-variant);
+}
+
+.post-toc__item a:hover {
+  color: var(--md-primary);
+}
+
+/* ===== Infinite Scroll Loader ===== */
+#infiniteLoader {
+  min-height: 1px;
+}
+
+#infiniteLoader .progress-circular {
+  animation: spin 1.4s linear infinite;
+}

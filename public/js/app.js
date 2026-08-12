@@ -1,6 +1,6 @@
 /* ============================================================
    MD3 Blog - Home Page Logic
-   Post list, search, filter, navigation
+   Post list, search, filter, infinite scroll, cover images
    ============================================================ */
 
 (function () {
@@ -10,6 +10,11 @@
   var allTags = [];
   var allCategories = [];
   var currentFilter = { type: "all", value: "all" };
+  var currentPage = 1;
+  var pageSize = 12;
+  var hasMore = true;
+  var isLoading = false;
+  var sentinelObserver = null;
 
   // ===== i18n helper =====
   function t(key) {
@@ -25,12 +30,12 @@
     initFab();
     initLangListener();
     initAuthListener();
+    initInfiniteScroll();
   });
 
   // ===== Listen for auth changes =====
   function initAuthListener() {
     window.addEventListener("authChanged", function () {
-      // Re-render posts to update author info
       renderPosts();
     });
   }
@@ -43,6 +48,7 @@
       if (allPosts.length === 0) {
         renderEmptyState();
       }
+      updateLoadMoreText();
     });
   }
 
@@ -58,13 +64,26 @@
     }
   }
 
-  // ===== Load Posts =====
-  async function loadPosts() {
+  // ===== Load Posts (Paginated) =====
+  async function loadPosts(page) {
+    page = page || 1;
+    if (isLoading) return;
+    if (page > 1 && !hasMore) return;
+
+    isLoading = true;
     var container = document.getElementById("postsContainer");
 
     try {
-      var data = await MD3.api("/posts");
-      allPosts = data.posts || [];
+      var data = await MD3.api("/posts?page=" + page + "&pageSize=" + pageSize);
+      var newPosts = data.posts || [];
+      hasMore = data.hasMore || false;
+
+      if (page === 1) {
+        allPosts = newPosts;
+      } else {
+        allPosts = allPosts.concat(newPosts);
+      }
+      currentPage = page;
 
       // Collect tags and categories
       var tagSet = {};
@@ -86,14 +105,73 @@
       if (allPosts.length === 0) {
         renderEmptyState();
       }
+
+      updateLoadMoreText();
     } catch (e) {
-      container.innerHTML =
-        '<div class="empty-state">' +
-        '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/></svg></div>' +
-        '<h2 class="empty-state__title">' + t("empty.failed_title") + '</h2>' +
-        '<p class="empty-state__description">' + MD3.escapeHtml(e.message) + "</p>" +
-        '<button class="btn-tonal" onclick="location.reload()">' + t("empty.retry") + '</button>' +
+      if (page === 1) {
+        container.innerHTML =
+          '<div class="empty-state">' +
+          '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/></svg></div>' +
+          '<h2 class="empty-state__title">' + t("empty.failed_title") + '</h2>' +
+          '<p class="empty-state__description">' + MD3.escapeHtml(e.message) + "</p>" +
+          '<button class="btn-tonal" onclick="location.reload()">' + t("empty.retry") + '</button>' +
+          "</div>";
+      }
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  // ===== Load More (for infinite scroll) =====
+  function loadMore() {
+    if (!isLoading && hasMore) {
+      loadPosts(currentPage + 1);
+    }
+  }
+
+  // ===== Update "Load More" / "No More" text =====
+  function updateLoadMoreText() {
+    var loader = document.getElementById("infiniteLoader");
+    if (!loader) return;
+
+    if (isLoading) {
+      loader.style.display = "";
+      loader.innerHTML =
+        '<div class="progress-circular" style="width:32px;height:32px;margin:16px auto;">' +
+        '<svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20"></circle></svg>' +
         "</div>";
+    } else if (!hasMore && allPosts.length > 0) {
+      loader.style.display = "";
+      loader.innerHTML =
+        '<p style="text-align:center;color:var(--md-on-surface-variant);padding:24px 0;font-size:14px;">' +
+        t("app.no_more_posts") + "</p>";
+    } else {
+      loader.style.display = "";
+      loader.innerHTML = "";
+    }
+  }
+
+  // ===== Infinite Scroll via IntersectionObserver =====
+  function initInfiniteScroll() {
+    var sentinel = document.getElementById("infiniteLoader");
+    if (!sentinel) return;
+
+    if ("IntersectionObserver" in window) {
+      sentinelObserver = new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting && !isLoading && hasMore) {
+          loadMore();
+        }
+      }, { rootMargin: "200px" });
+      sentinelObserver.observe(sentinel);
+    } else {
+      // Fallback: scroll listener
+      window.addEventListener("scroll", function () {
+        if (isLoading || !hasMore) return;
+        var rect = sentinel.getBoundingClientRect();
+        if (rect.top < window.innerHeight + 200) {
+          loadMore();
+        }
+      });
     }
   }
 
@@ -190,7 +268,7 @@
       return true;
     });
 
-    if (filtered.length === 0) {
+    if (filtered.length === 0 && !isLoading) {
       container.innerHTML =
         '<div class="empty-state">' +
         '<div class="empty-state__icon"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/></svg></div>' +
@@ -209,12 +287,22 @@
         })
         .join("");
 
+      // Cover image HTML
+      var coverHtml = "";
+      if (p.coverImage) {
+        coverHtml =
+          '<div class="card__cover">' +
+          '<img src="' + MD3.escapeHtml(p.coverImage) + '" alt="' + MD3.escapeHtml(p.title) + '" loading="lazy" />' +
+          "</div>";
+      }
+
       html +=
         '<article class="card fade-in" data-slug="' +
         MD3.escapeHtml(p.slug) +
         '" style="animation-delay:' +
-        i * 50 +
+        (i % pageSize) * 50 +
         'ms">' +
+        coverHtml +
         '<div class="card__content">' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
         '<span style="font-size:12px;font-weight:500;color:var(--md-primary);text-transform:uppercase;letter-spacing:0.5px;">' +
@@ -236,7 +324,18 @@
     });
     html += "</div>";
 
+    // Add infinite scroll loader at the end
+    html += '<div id="infiniteLoader"></div>';
+
     container.innerHTML = html;
+
+    // Re-attach observer to new sentinel
+    if (sentinelObserver) {
+      var sentinel = document.getElementById("infiniteLoader");
+      if (sentinel) sentinelObserver.observe(sentinel);
+    }
+
+    updateLoadMoreText();
 
     // Attach click handlers
     container.querySelectorAll(".card").forEach(function (card) {

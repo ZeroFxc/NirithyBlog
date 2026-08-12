@@ -13,6 +13,8 @@
       "app.search_placeholder": "Search posts...",
       "app.filter_all": "All",
       "app.new_post": "New Post",
+      "app.no_more_posts": "No more posts",
+      "app.loading_more": "Loading more...",
 
       // Empty states
       "empty.no_posts_title": "No posts yet",
@@ -32,6 +34,8 @@
       "post.updated": "Updated",
       "post.uncategorized": "Uncategorized",
       "post.author": "Author",
+      "post.read_time": "min read",
+      "post.toc": "Table of Contents",
 
       // Editor
       "editor.new_post": "New Post",
@@ -50,6 +54,8 @@
       "editor.save": "Save",
       "editor.saving": "Saving...",
       "editor.login_required": "Please login to create posts",
+      "editor.cover_image": "Cover Image URL",
+      "editor.cover_image_placeholder": "https://example.com/cover.jpg",
 
       // Dialog
       "dialog.delete_title": "Delete Post",
@@ -221,6 +227,8 @@
       "app.search_placeholder": "搜索文章...",
       "app.filter_all": "全部",
       "app.new_post": "新建文章",
+      "app.no_more_posts": "没有更多文章了",
+      "app.loading_more": "加载更多...",
 
       // Empty states
       "empty.no_posts_title": "还没有文章",
@@ -240,6 +248,8 @@
       "post.updated": "更新于",
       "post.uncategorized": "未分类",
       "post.author": "作者",
+      "post.read_time": "分钟阅读",
+      "post.toc": "目录",
 
       // Editor
       "editor.new_post": "新建文章",
@@ -258,6 +268,8 @@
       "editor.save": "保存",
       "editor.saving": "保存中...",
       "editor.login_required": "请登录后再创建文章",
+      "editor.cover_image": "封面图 URL",
+      "editor.cover_image_placeholder": "https://example.com/cover.jpg",
 
       // Dialog
       "dialog.delete_title": "删除文章",

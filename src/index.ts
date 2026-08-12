@@ -16,6 +16,7 @@ interface Post {
   authorName: string;
   createdAt: string;
   updatedAt: string;
+  coverImage?: string;
 }
 
 interface PostSummary {
@@ -28,6 +29,7 @@ interface PostSummary {
   authorName: string;
   createdAt: string;
   updatedAt: string;
+  coverImage?: string;
 }
 
 interface User {
@@ -428,26 +430,32 @@ async function addPointsLog(
 // ===== R2 Storage: Posts =====
 
 async function listPosts(env: Env): Promise<PostSummary[]> {
-  const listed = await env.BUCKET.list({ prefix: POSTS_PREFIX });
   const posts: PostSummary[] = [];
+  let cursor: string | undefined;
 
-  for (const item of listed.objects) {
-    if (!item.key.endsWith(".json")) continue;
-    const obj = await env.BUCKET.get(item.key);
-    if (!obj) continue;
-    const post = (await obj.json()) as Post;
-    posts.push({
-      slug: post.slug,
-      title: post.title,
-      excerpt: post.excerpt,
-      tags: post.tags || [],
-      category: post.category || "Uncategorized",
-      authorId: post.authorId || "",
-      authorName: post.authorName || "",
-      createdAt: post.createdAt,
-      updatedAt: post.updatedAt,
-    });
-  }
+  // R2 list returns max 1000 keys per call, paginate if needed
+  do {
+    const listed = await env.BUCKET.list({ prefix: POSTS_PREFIX, cursor });
+    for (const item of listed.objects) {
+      if (!item.key.endsWith(".json")) continue;
+      const obj = await env.BUCKET.get(item.key);
+      if (!obj) continue;
+      const post = (await obj.json()) as Post;
+      posts.push({
+        slug: post.slug,
+        title: post.title,
+        excerpt: post.excerpt,
+        tags: post.tags || [],
+        category: post.category || "Uncategorized",
+        authorId: post.authorId || "",
+        authorName: post.authorName || "",
+        createdAt: post.createdAt,
+        updatedAt: post.updatedAt,
+        coverImage: post.coverImage || undefined,
+      });
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
 
   posts.sort(
     (a, b) =>
@@ -1152,9 +1160,26 @@ async function handleDeleteComment(
 
 // ===== Post Handlers =====
 
-async function handleListPosts(env: Env): Promise<Response> {
-  const posts = await listPosts(env);
-  return json({ posts, total: posts.length });
+async function handleListPosts(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const url = new URL(request.url);
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+  const pageSize = Math.min(50, Math.max(1, parseInt(url.searchParams.get("pageSize") || "10", 10)));
+
+  const allPosts = await listPosts(env);
+  const total = allPosts.length;
+  const start = (page - 1) * pageSize;
+  const posts = allPosts.slice(start, start + pageSize);
+
+  return json({
+    posts,
+    total,
+    page,
+    pageSize,
+    hasMore: start + pageSize < total,
+  });
 }
 
 async function handleGetPost(
@@ -1210,6 +1235,7 @@ async function handleCreatePost(
     authorName: user.username,
     createdAt: now,
     updatedAt: now,
+    coverImage: body.coverImage || undefined,
   };
 
   await savePost(post, env);
@@ -1258,6 +1284,7 @@ async function handleUpdatePost(
     excerpt: body.excerpt ?? existing.excerpt,
     tags: body.tags ?? existing.tags,
     category: body.category ?? existing.category,
+    coverImage: body.coverImage !== undefined ? (body.coverImage || undefined) : existing.coverImage,
     updatedAt: new Date().toISOString(),
   };
 
@@ -1570,9 +1597,9 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
     return handleListCategories(env);
   }
 
-  // Posts list (public)
+  // Posts list (public, paginated)
   if (path === "/posts" && method === "GET") {
-    return handleListPosts(env);
+    return handleListPosts(request, env);
   }
 
   // Auth routes
@@ -1759,13 +1786,168 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
   return json({ error: "Endpoint not found", path, method }, 404);
 }
 
+// ===== SSR: Server-side render post page with OG meta =====
+
+function escapeHtmlAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*|__|~~|`/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+function estimateReadingTime(content: string): number {
+  // ~300 words per minute for Chinese+English mixed
+  const charCount = content.replace(/\s/g, "").length;
+  return Math.max(1, Math.ceil(charCount / 500));
+}
+
+async function handleSSRPost(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const url = new URL(request.url);
+  const slug = url.searchParams.get("slug");
+  if (!slug) return env.ASSETS.fetch(request);
+
+  const post = await getPost(slug, env);
+  if (!post) return env.ASSETS.fetch(request);
+
+  // Fetch the static post.html
+  const assetResponse = await env.ASSETS.fetch(
+    new Request("https://same-host/post.html")
+  );
+  let html = await assetResponse.text();
+
+  // Build OG meta tags
+  const ogTitle = escapeHtmlAttr(post.title);
+  const ogDesc = escapeHtmlAttr(
+    post.excerpt || stripMarkdown(post.content || "").substring(0, 200)
+  );
+  const ogUrl = `${SITE_URL}/post?slug=${encodeURIComponent(post.slug)}`;
+  const ogImage = post.coverImage
+    ? escapeHtmlAttr(post.coverImage)
+    : "";
+  const readingTime = estimateReadingTime(post.content || "");
+
+  const metaTags =
+    `<meta property="og:type" content="article" />` +
+    `<meta property="og:title" content="${ogTitle}" />` +
+    `<meta property="og:description" content="${ogDesc}" />` +
+    `<meta property="og:url" content="${ogUrl}" />` +
+    (ogImage ? `<meta property="og:image" content="${ogImage}" />` : "") +
+    `<meta property="og:site_name" content="${escapeHtmlAttr(env.BLOG_TITLE || "NirithyBlog")}" />` +
+    `<meta name="twitter:card" content="summary_large_image" />` +
+    `<meta name="twitter:title" content="${ogTitle}" />` +
+    `<meta name="twitter:description" content="${ogDesc}" />` +
+    (ogImage ? `<meta name="twitter:image" content="${ogImage}" />` : "") +
+    `<meta name="description" content="${ogDesc}" />` +
+    `<script type="application/ld+json">` +
+    JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: post.title,
+      datePublished: post.createdAt,
+      dateModified: post.updatedAt,
+      author: { "@type": "Person", name: post.authorName || "Unknown" },
+      description: post.excerpt || "",
+      ...(ogImage ? { image: post.coverImage } : {}),
+    }) +
+    `</script>`;
+
+  // Inject meta tags before </head>
+  html = html.replace("</head>", metaTags + "</head>");
+
+  // Update title
+  html = html.replace(
+    /<title>[^<]*<\/title>/,
+    `<title>${escapeHtmlAttr(post.title)} - ${escapeHtmlAttr(env.BLOG_TITLE || "NirithyBlog")}</title>`
+  );
+
+  // Inject SSR content into postContainer for crawlers
+  const plainContent = escapeHtmlAttr(stripMarkdown(post.content || "").substring(0, 5000));
+  const ssrContent =
+    `<div id="ssr-content" style="display:none" data-reading-time="${readingTime}">` +
+    `<h1>${escapeHtmlAttr(post.title)}</h1>` +
+    `<p>${plainContent}</p>` +
+    `</div>`;
+
+  html = html.replace(
+    'id="postContainer"',
+    `id="postContainer"${ssrContent ? "" : ""}`
+  );
+  // Insert SSR content right after the opening of postContainer's parent or before scripts
+  html = html.replace("</body>", ssrContent + "</body>");
+
+  return new Response(html, {
+    headers: {
+      "Content-Type": "text/html;charset=UTF-8",
+      "Cache-Control": "public, max-age=60",
+    },
+  });
+}
+
+// ===== sitemap.xml + robots.txt =====
+
+async function handleSitemap(env: Env): Promise<Response> {
+  const posts = await listPosts(env);
+  const now = new Date().toISOString().split("T")[0];
+
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml +=
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+
+  // Static pages
+  xml += `  <url><loc>${SITE_URL}/</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+
+  // Post pages
+  for (const post of posts) {
+    const lastmod = post.updatedAt.split("T")[0];
+    xml += `  <url><loc>${SITE_URL}/post?slug=${encodeURIComponent(post.slug)}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>\n`;
+  }
+
+  xml += "</urlset>";
+
+  return new Response(xml, {
+    headers: { "Content-Type": "application/xml;charset=UTF-8" },
+  });
+}
+
+function handleRobots(): Response {
+  const txt =
+    `User-agent: *\n` +
+    `Allow: /\n` +
+    `Disallow: /api/\n` +
+    `Disallow: /admin\n` +
+    `Disallow: /editor\n` +
+    `\n` +
+    `Sitemap: ${SITE_URL}/sitemap.xml\n`;
+
+  return new Response(txt, {
+    headers: { "Content-Type": "text/plain;charset=UTF-8" },
+  });
+}
+
 // ===== Worker Entry =====
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const path = url.pathname;
 
-    if (url.pathname.startsWith("/api/")) {
+    // API routes
+    if (path.startsWith("/api/")) {
       try {
         return await handleAPI(request, env);
       } catch (err) {
@@ -1774,6 +1956,21 @@ export default {
           err instanceof Error ? err.message : "Internal server error";
         return json({ error: message }, 500);
       }
+    }
+
+    // sitemap.xml
+    if (path === "/sitemap.xml") {
+      return handleSitemap(env);
+    }
+
+    // robots.txt
+    if (path === "/robots.txt") {
+      return handleRobots();
+    }
+
+    // SSR for post detail pages
+    if (path === "/post" && url.searchParams.has("slug")) {
+      return handleSSRPost(request, env);
     }
 
     return env.ASSETS.fetch(request);
