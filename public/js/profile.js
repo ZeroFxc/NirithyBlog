@@ -20,7 +20,7 @@
 
     // If no username, redirect to own profile or login
     if (!username) {
-      if (window.Auth && Auth.isLoggedIn()) {
+      if (window.Auth && Auth.isLoggedIn() && Auth.getUser()) {
         username = Auth.getUser().username;
       } else {
         window.location.href = "/";

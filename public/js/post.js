@@ -55,7 +55,7 @@
     var editBtn = document.getElementById("editBtn");
     var deleteBtn = document.getElementById("deleteBtn");
 
-    if (window.Auth && Auth.isLoggedIn() && currentPost) {
+    if (window.Auth && Auth.isLoggedIn() && Auth.getUser() && currentPost) {
       var user = Auth.getUser();
       if (currentPost.authorId === user.id) {
         if (editBtn) editBtn.style.display = "";

@@ -28,7 +28,7 @@
         MD3.showSnackbar(t("editor.login_required"));
         return;
       }
-      if (user.role !== "admin") {
+      if (!user || user.role !== "admin") {
         var container = document.getElementById("adminContainer");
         container.innerHTML =
           '<div class="empty-state">' +

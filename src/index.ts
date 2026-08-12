@@ -115,6 +115,7 @@ const POINTS_CHECKIN = 5;
 const POINTS_POST = 10;
 const POINTS_COMMENT = 2;
 const POINTS_STREAK_BONUS_CAP = 20;
+const POINTS_GITHUB_BIND = 10;
 
 const LEVELS = [
   { level: 1, min: 0, titleEn: "Newbie", titleZh: "新手" },
@@ -755,11 +756,19 @@ async function linkGithubToUser(
 ): Promise<void> {
   user.githubId = githubId;
   user.githubUsername = githubUsername;
+  user.points += POINTS_GITHUB_BIND;
   await saveUser(user, env);
   await env.BUCKET.put(
     `${GITHUB_PREFIX}${githubId}.json`,
     JSON.stringify({ userId: user.id }),
     { httpMetadata: { contentType: "application/json" } }
+  );
+  await addPointsLog(
+    user.id,
+    "github_bind",
+    POINTS_GITHUB_BIND,
+    `Bound GitHub account: ${githubUsername}`,
+    env
   );
 }
 
