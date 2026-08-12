@@ -41,6 +41,8 @@ interface User {
   checkinStreak: number;
   role: "user" | "admin";
   banned: boolean;
+  githubId?: number;
+  githubUsername?: string;
 }
 
 interface UserPublic {
@@ -58,6 +60,8 @@ interface UserPublic {
   role: "user" | "admin";
   banned: boolean;
   postCount: number;
+  githubId?: number;
+  githubUsername?: string;
 }
 
 interface Comment {
@@ -89,6 +93,8 @@ interface Env {
   BLOG_TITLE: string;
   BLOG_DESCRIPTION: string;
   JWT_SECRET: string;
+  GITHUB_CLIENT_ID: string;
+  GITHUB_CLIENT_SECRET: string;
 }
 
 // ===== Constants =====
@@ -99,6 +105,7 @@ const USERNAMES_PREFIX = "usernames/";
 const COMMENTS_PREFIX = "comments/";
 const CHECKIN_PREFIX = "checkin/";
 const POINTS_PREFIX = "points/";
+const GITHUB_PREFIX = "github/";
 
 const PBKDF2_ITERATIONS = 100000;
 const TOKEN_EXPIRY_HOURS = 72;
@@ -208,6 +215,8 @@ function toUserPublic(user: User, env?: Env): UserPublic {
     role: user.role || "user",
     banned: user.banned || false,
     postCount: 0,
+    githubId: user.githubId || undefined,
+    githubUsername: user.githubUsername || undefined,
   };
 
   // postCount is filled lazily by callers if env is provided
@@ -608,6 +617,315 @@ async function handleLogin(
 
 async function handleMe(user: User): Promise<Response> {
   return json({ user: toUserPublic(user) });
+}
+
+// ===== GitHub OAuth =====
+
+async function generateState(
+  action: "login" | "bind",
+  userId: string | null,
+  secret: string
+): Promise<string> {
+  const payload = {
+    action,
+    userId,
+    nonce: generateId(),
+    exp: Date.now() + 10 * 60 * 1000,
+  };
+  const enc = new TextEncoder();
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, "");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payloadB64));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/=/g, "");
+  return `${payloadB64}.${sigB64}`;
+}
+
+async function verifyState(
+  state: string,
+  secret: string
+): Promise<{ action: string; userId: string | null } | null> {
+  try {
+    const [payloadB64, sigB64] = state.split(".");
+    if (!payloadB64 || !sigB64) return null;
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+    const sigBytes = Uint8Array.from(atob(sigB64), (c) => c.charCodeAt(0));
+    const valid = await crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(payloadB64));
+    if (!valid) return null;
+
+    const payload = JSON.parse(atob(payloadB64));
+    if (payload.exp && Date.now() > payload.exp) return null;
+
+    return { action: payload.action, userId: payload.userId };
+  } catch {
+    return null;
+  }
+}
+
+async function exchangeGithubCode(
+  code: string,
+  env: Env
+): Promise<{ access_token: string } | null> {
+  const redirectUri = `https://xn--kiv483g.online/api/auth/github/callback`;
+  const resp = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      client_id: env.GITHUB_CLIENT_ID,
+      client_secret: env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as { access_token?: string; error?: string };
+  if (!data.access_token) return null;
+  return { access_token: data.access_token };
+}
+
+async function getGithubUser(
+  accessToken: string
+): Promise<{
+  id: number;
+  login: string;
+  avatar_url: string;
+  name: string | null;
+} | null> {
+  const resp = await fetch("https://api.github.com/user", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "User-Agent": "NirithyBlog",
+    },
+  });
+
+  if (!resp.ok) return null;
+  return (await resp.json()) as {
+    id: number;
+    login: string;
+    avatar_url: string;
+    name: string | null;
+  };
+}
+
+async function getUserByGithubId(
+  githubId: number,
+  env: Env
+): Promise<User | null> {
+  const obj = await env.BUCKET.get(`${GITHUB_PREFIX}${githubId}.json`);
+  if (!obj) return null;
+  const { userId } = (await obj.json()) as { userId: string };
+  const userObj = await env.BUCKET.get(`${USERS_PREFIX}${userId}.json`);
+  if (!userObj) return null;
+  return (await userObj.json()) as User;
+}
+
+async function linkGithubToUser(
+  user: User,
+  githubId: number,
+  githubUsername: string,
+  env: Env
+): Promise<void> {
+  user.githubId = githubId;
+  user.githubUsername = githubUsername;
+  await saveUser(user, env);
+  await env.BUCKET.put(
+    `${GITHUB_PREFIX}${githubId}.json`,
+    JSON.stringify({ userId: user.id }),
+    { httpMetadata: { contentType: "application/json" } }
+  );
+}
+
+async function unlinkGithubFromUser(user: User, env: Env): Promise<void> {
+  if (user.githubId) {
+    await env.BUCKET.delete(`${GITHUB_PREFIX}${user.githubId}.json`);
+  }
+  user.githubId = undefined;
+  user.githubUsername = undefined;
+  await saveUser(user, env);
+}
+
+// GET /api/auth/github — redirect to GitHub OAuth (login mode)
+async function handleGithubLoginRedirect(env: Env): Promise<Response> {
+  const state = await generateState("login", null, env.JWT_SECRET);
+  const params = new URLSearchParams({
+    client_id: env.GITHUB_CLIENT_ID,
+    redirect_uri: "https://xn--kiv483g.online/api/auth/github/callback",
+    state,
+    scope: "read:user",
+  });
+  return Response.redirect(
+    `https://github.com/login/oauth/authorize?${params}`,
+    302
+  );
+}
+
+// GET /api/auth/github/bind — redirect to GitHub OAuth (bind mode, needs auth)
+async function handleGithubBindRedirect(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const user = await getAuthUser(request, env);
+  if (!user) {
+    return Response.redirect("/?error=auth_required", 302);
+  }
+  const state = await generateState("bind", user.id, env.JWT_SECRET);
+  const params = new URLSearchParams({
+    client_id: env.GITHUB_CLIENT_ID,
+    redirect_uri: "https://xn--kiv483g.online/api/auth/github/callback",
+    state,
+    scope: "read:user",
+  });
+  return Response.redirect(
+    `https://github.com/login/oauth/authorize?${params}`,
+    302
+  );
+}
+
+// GET /api/auth/github/callback — handle OAuth callback
+async function handleGithubCallback(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+
+  if (error || !code || !state) {
+    return Response.redirect("/?error=github_auth_failed", 302);
+  }
+
+  const stateData = await verifyState(state, env.JWT_SECRET);
+  if (!stateData) {
+    return Response.redirect("/?error=invalid_state", 302);
+  }
+
+  const tokenData = await exchangeGithubCode(code, env);
+  if (!tokenData) {
+    return Response.redirect("/?error=token_exchange_failed", 302);
+  }
+
+  const ghUser = await getGithubUser(tokenData.access_token);
+  if (!ghUser) {
+    return Response.redirect("/?error=github_user_failed", 302);
+  }
+
+  // Check if this GitHub account is already linked to a user
+  let user = await getUserByGithubId(ghUser.id, env);
+
+  if (stateData.action === "bind") {
+    // Binding mode: link GitHub to the currently logged-in user
+    if (!stateData.userId) {
+      return Response.redirect("/?error=no_user_to_bind", 302);
+    }
+
+    if (user) {
+      // This GitHub account is already linked to another user
+      return Response.redirect(
+        "/profile.html?error=github_already_bound",
+        302
+      );
+    }
+
+    // Fetch the user who initiated the bind
+    const userObj = await env.BUCKET.get(`${USERS_PREFIX}${stateData.userId}.json`);
+    if (!userObj) {
+      return Response.redirect("/?error=user_not_found", 302);
+    }
+    user = (await userObj.json()) as User;
+
+    await linkGithubToUser(user, ghUser.id, ghUser.login, env);
+
+    return Response.redirect(
+      `/profile.html?u=${encodeURIComponent(user.username)}&bound=github`,
+      302
+    );
+  }
+
+  // Login mode
+  if (user) {
+    // Existing GitHub user — log them in
+    if (user.banned) {
+      return Response.redirect("/?error=banned", 302);
+    }
+    // Update GitHub username in case it changed
+    if (user.githubUsername !== ghUser.login) {
+      user.githubUsername = ghUser.login;
+      await saveUser(user, env);
+    }
+    const token = await generateToken(user, env.JWT_SECRET);
+    return Response.redirect(`/?token=${token}`, 302);
+  }
+
+  // New GitHub user — create account
+  let username = ghUser.login;
+  // Check username conflict
+  const existing = await getUserByUsername(username, env);
+  if (existing) {
+    username = `gh-${ghUser.login}`;
+  }
+  // Double check
+  const existing2 = await getUserByUsername(username, env);
+  if (existing2) {
+    username = `gh-${ghUser.login}-${ghUser.id}`;
+  }
+
+  const isFirstUser = (await env.BUCKET.list({ prefix: USERS_PREFIX, limit: 1 })).objects.length === 0;
+
+  const newUser: User = {
+    id: generateId(),
+    username,
+    passwordHash: "",
+    salt: "",
+    points: 0,
+    createdAt: new Date().toISOString(),
+    lastCheckin: null,
+    checkinStreak: 0,
+    role: isFirstUser ? "admin" : "user",
+    banned: false,
+    githubId: ghUser.id,
+    githubUsername: ghUser.login,
+  };
+
+  await saveUser(newUser, env);
+  await env.BUCKET.put(
+    `${GITHUB_PREFIX}${ghUser.id}.json`,
+    JSON.stringify({ userId: newUser.id }),
+    { httpMetadata: { contentType: "application/json" } }
+  );
+
+  const token = await generateToken(newUser, env.JWT_SECRET);
+  return Response.redirect(`/?token=${token}`, 302);
+}
+
+// DELETE /api/auth/github/unbind — unbind GitHub from current user
+async function handleGithubUnbind(
+  user: User,
+  env: Env
+): Promise<Response> {
+  if (!user.githubId) {
+    return json({ error: "GitHub not linked" }, 400);
+  }
+  await unlinkGithubFromUser(user, env);
+  return json({ success: true, user: toUserPublic(user) });
 }
 
 // ===== Check-in Handler =====
@@ -1245,6 +1563,25 @@ async function handleAPI(request: Request, env: Env): Promise<Response> {
 
   if (path === "/auth/login" && method === "POST") {
     return handleLogin(request, env);
+  }
+
+  // GitHub OAuth routes
+  if (path === "/auth/github" && method === "GET") {
+    return handleGithubLoginRedirect(env);
+  }
+
+  if (path === "/auth/github/bind" && method === "GET") {
+    return handleGithubBindRedirect(request, env);
+  }
+
+  if (path === "/auth/github/callback" && method === "GET") {
+    return handleGithubCallback(request, env);
+  }
+
+  if (path === "/auth/github/unbind" && method === "DELETE") {
+    const user = await getAuthUser(request, env);
+    if (!user) return json({ error: "Not authenticated" }, 401);
+    return handleGithubUnbind(user, env);
   }
 
   // ===== Auth required routes =====

@@ -102,6 +102,15 @@
       "auth.login_success": "Login successful",
       "auth.register_success": "Registration successful",
       "auth.logged_out": "Logged out",
+      "auth.login_github": "Login with GitHub",
+      "auth.bind_github": "Bind GitHub",
+      "auth.unbind_github": "Unbind GitHub",
+      "auth.unbind_confirm": "Are you sure you want to unbind your GitHub account?",
+      "auth.github_bound": "GitHub account bound successfully",
+      "auth.github_unbound": "GitHub account unbound",
+      "auth.github_failed": "GitHub authentication failed",
+      "auth.github_already_bound": "This GitHub account is already linked to another user",
+      "auth.banned": "Your account has been banned",
 
       // Check-in
       "checkin.checkin": "Check-in",
@@ -288,6 +297,15 @@
       "auth.login_success": "登录成功",
       "auth.register_success": "注册成功",
       "auth.logged_out": "已退出登录",
+      "auth.login_github": "使用 GitHub 登录",
+      "auth.bind_github": "绑定 GitHub",
+      "auth.unbind_github": "解绑 GitHub",
+      "auth.unbind_confirm": "确定要解绑 GitHub 账号吗？",
+      "auth.github_bound": "GitHub 账号绑定成功",
+      "auth.github_unbound": "GitHub 账号已解绑",
+      "auth.github_failed": "GitHub 认证失败",
+      "auth.github_already_bound": "该 GitHub 账号已绑定其他用户",
+      "auth.banned": "你的账号已被封禁",
 
       // Check-in
       "checkin.checkin": "签到",
