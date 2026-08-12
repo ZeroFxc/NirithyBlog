@@ -16,5 +16,6 @@ bucket_name = "md3-blog-storage"
 
 # 环境变量
 [vars]
-BLOG_TITLE = "MD3 Blog"
-BLOG_DESCRIPTION = "Material Design 3 Blog on Cloudflare Workers + R2"
+BLOG_TITLE = "NirithyBlog"
+BLOG_DESCRIPTION = "NirithyBlog on Cloudflare Workers + R2"
+JWT_SECRET = "nirithy-blog-jwt-secret-2026-change-in-production"

@@ -24,7 +24,16 @@
     initSearch();
     initFab();
     initLangListener();
+    initAuthListener();
   });
+
+  // ===== Listen for auth changes =====
+  function initAuthListener() {
+    window.addEventListener("authChanged", function () {
+      // Re-render posts to update author info
+      renderPosts();
+    });
+  }
 
   // ===== Listen for language change =====
   function initLangListener() {
@@ -256,7 +265,13 @@
     var fab = document.getElementById("newPostFab");
     if (fab) {
       fab.addEventListener("click", function () {
-        window.location.href = "/editor";
+        if (window.Auth) {
+          Auth.requireAuth(function () {
+            window.location.href = "/editor";
+          });
+        } else {
+          window.location.href = "/editor";
+        }
       });
     }
   }

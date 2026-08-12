@@ -199,6 +199,11 @@
       Object.assign(fetchOptions.headers, options.headers);
     }
 
+    // Attach auth token if available
+    if (global.Auth && Auth.getToken()) {
+      fetchOptions.headers["Authorization"] = "Bearer " + Auth.getToken();
+    }
+
     var response = await fetch(url, fetchOptions);
     var data = await response.json();
 
@@ -222,6 +227,7 @@
     initTheme();
     initRipples();
     initAppBarShadow();
+    if (global.Auth) Auth.init();
   }
 
   if (document.readyState === "loading") {

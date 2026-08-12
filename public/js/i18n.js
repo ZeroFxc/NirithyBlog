@@ -1,5 +1,5 @@
 /* ============================================================
-   MD3 Blog - i18n Internationalization
+   NirithyBlog - i18n Internationalization
    Supports: English (en), Chinese (zh-CN)
    ============================================================ */
 
@@ -9,7 +9,7 @@
   var translations = {
     "en": {
       // App
-      "app.title": "MD3 Blog",
+      "app.title": "NirithyBlog",
       "app.search_placeholder": "Search posts...",
       "app.filter_all": "All",
       "app.new_post": "New Post",
@@ -31,6 +31,7 @@
       // Post detail
       "post.updated": "Updated",
       "post.uncategorized": "Uncategorized",
+      "post.author": "Author",
 
       // Editor
       "editor.new_post": "New Post",
@@ -48,6 +49,7 @@
       "editor.preview_placeholder": "Preview will appear here...",
       "editor.save": "Save",
       "editor.saving": "Saving...",
+      "editor.login_required": "Please login to create posts",
 
       // Dialog
       "dialog.delete_title": "Delete Post",
@@ -87,90 +89,152 @@
       "time.d_ago": "d ago",
       "time.w_ago": "w ago",
       "time.mo_ago": "mo ago",
-      "time.y_ago": "y ago"
+      "time.y_ago": "y ago",
+
+      // Auth
+      "auth.login": "Login",
+      "auth.register": "Register",
+      "auth.logout": "Logout",
+      "auth.no_account": "No account? Register",
+      "auth.has_account": "Already have an account? Login",
+      "auth.fields_required": "Username and password are required",
+      "auth.processing": "Processing...",
+      "auth.login_success": "Login successful",
+      "auth.register_success": "Registration successful",
+      "auth.logged_out": "Logged out",
+
+      // Check-in
+      "checkin.checkin": "Check-in",
+      "checkin.done": "Checked in",
+      "checkin.success": "Check-in successful!",
+      "checkin.already": "Already checked in today",
+      "checkin.streak": "streak",
+
+      // Comments
+      "comments.title": "Comments",
+      "comments.placeholder": "Write a comment...",
+      "comments.submit": "Post Comment",
+      "comments.empty": "No comments yet. Be the first to comment!",
+      "comments.login_required": "Please login to comment",
+      "comments.delete": "Delete",
+      "comments.confirm_delete": "Delete this comment?",
+      "comments.posted": "Comment posted!",
+      "comments.deleted": "Comment deleted"
     },
 
     "zh-CN": {
       // App
-      "app.title": "MD3 \u535a\u5ba2",
-      "app.search_placeholder": "\u641c\u7d22\u6587\u7ae0...",
-      "app.filter_all": "\u5168\u90e8",
-      "app.new_post": "\u65b0\u5efa\u6587\u7ae0",
+      "app.title": "NirithyBlog",
+      "app.search_placeholder": "搜索文章...",
+      "app.filter_all": "全部",
+      "app.new_post": "新建文章",
 
       // Empty states
-      "empty.no_posts_title": "\u8fd8\u6ca1\u6709\u6587\u7ae0",
-      "empty.no_posts_desc": "\u6210\u4e3a\u7b2c\u4e00\u4f4d\u53d1\u5e03\u6587\u7ae0\u7684\u4eba\u3002",
-      "empty.write_post": "\u5199\u4e00\u7bc7",
-      "empty.no_results_title": "\u672a\u627e\u5230\u6587\u7ae0",
-      "empty.no_results_desc": "\u8bd5\u8bd5\u8c03\u6574\u641c\u7d22\u6216\u7b5b\u9009\u6761\u4ef6\u3002",
-      "empty.failed_title": "\u52a0\u8f7d\u5931\u8d25",
-      "empty.retry": "\u91cd\u8bd5",
-      "empty.back_home": "\u8fd4\u56de\u9996\u9875",
-      "empty.no_post_title": "\u672a\u6307\u5b9a\u6587\u7ae0",
-      "empty.no_post_desc": "\u8bf7\u8fd4\u56de\u9009\u62e9\u4e00\u7bc7\u6587\u7ae0\u3002",
-      "empty.not_found_title": "\u6587\u7ae0\u4e0d\u5b58\u5728",
-      "empty.not_found_desc": "\u60a8\u8981\u67e5\u627e\u7684\u6587\u7ae0\u4e0d\u5b58\u5728\u3002",
+      "empty.no_posts_title": "还没有文章",
+      "empty.no_posts_desc": "成为第一位发布文章的人。",
+      "empty.write_post": "写一篇",
+      "empty.no_results_title": "未找到文章",
+      "empty.no_results_desc": "试试调整搜索或筛选条件。",
+      "empty.failed_title": "加载失败",
+      "empty.retry": "重试",
+      "empty.back_home": "返回首页",
+      "empty.no_post_title": "未指定文章",
+      "empty.no_post_desc": "请返回选择一篇文章。",
+      "empty.not_found_title": "文章不存在",
+      "empty.not_found_desc": "您要查找的文章不存在。",
 
       // Post detail
-      "post.updated": "\u66f4\u65b0\u4e8e",
-      "post.uncategorized": "\u672a\u5206\u7c7b",
+      "post.updated": "更新于",
+      "post.uncategorized": "未分类",
+      "post.author": "作者",
 
       // Editor
-      "editor.new_post": "\u65b0\u5efa\u6587\u7ae0",
-      "editor.edit_post": "\u7f16\u8f91\u6587\u7ae0",
-      "editor.title": "\u6807\u9898",
-      "editor.title_placeholder": "\u8f93\u5165\u6587\u7ae0\u6807\u9898...",
-      "editor.category": "\u5206\u7c7b",
-      "editor.category_placeholder": "\u4f8b\u5982\uff1a\u6280\u672f",
-      "editor.slug": "\u94fe\u63a5 (URL)",
-      "editor.slug_placeholder": "\u7559\u7a7a\u5219\u81ea\u52a8\u751f\u6210",
-      "editor.tags": "\u6807\u7b7e",
-      "editor.tags_placeholder": "\u8f93\u5165\u6807\u7b7e\u540e\u6309 Enter...",
-      "editor.content": "\u6b63\u6587 (Markdown)",
-      "editor.content_placeholder": "\u7528 Markdown \u5199\u4f60\u7684\u6587\u7ae0...",
-      "editor.preview_placeholder": "\u9884\u89c8\u5c06\u5728\u6b64\u5904\u663e\u793a...",
-      "editor.save": "\u4fdd\u5b58",
-      "editor.saving": "\u4fdd\u5b58\u4e2d...",
+      "editor.new_post": "新建文章",
+      "editor.edit_post": "编辑文章",
+      "editor.title": "标题",
+      "editor.title_placeholder": "输入文章标题...",
+      "editor.category": "分类",
+      "editor.category_placeholder": "例如：技术",
+      "editor.slug": "链接 (URL)",
+      "editor.slug_placeholder": "留空则自动生成",
+      "editor.tags": "标签",
+      "editor.tags_placeholder": "输入标签后按 Enter...",
+      "editor.content": "正文 (Markdown)",
+      "editor.content_placeholder": "用 Markdown 写你的文章...",
+      "editor.preview_placeholder": "预览将在此处显示...",
+      "editor.save": "保存",
+      "editor.saving": "保存中...",
+      "editor.login_required": "请登录后再创建文章",
 
       // Dialog
-      "dialog.delete_title": "\u5220\u9664\u6587\u7ae0",
-      "dialog.delete_content": "\u786e\u5b9a\u8981\u522a\u9664\u8fd9\u7bc7\u6587\u7ae0\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002",
-      "dialog.cancel": "\u53d6\u6d88",
-      "dialog.delete": "\u5220\u9664",
-      "dialog.deleting": "\u522a\u9664\u4e2d...",
+      "dialog.delete_title": "删除文章",
+      "dialog.delete_content": "确定要删除这篇文章吗？此操作不可撤销。",
+      "dialog.cancel": "取消",
+      "dialog.delete": "删除",
+      "dialog.deleting": "删除中...",
 
       // Messages
-      "msg.title_required": "\u6807\u9898\u4e0d\u80fd\u4e3a\u7a7a",
-      "msg.content_required": "\u6b63\u6587\u4e0d\u80fd\u4e3a\u7a7a",
-      "msg.post_created": "\u6587\u7ae0\u521b\u5efa\u6210\u529f",
-      "msg.post_updated": "\u6587\u7ae0\u66f4\u65b0\u6210\u529f",
-      "msg.post_deleted": "\u6587\u7ae0\u522a\u9664\u6210\u529f",
-      "msg.error_prefix": "\u9519\u8bef\uff1a",
+      "msg.title_required": "标题不能为空",
+      "msg.content_required": "正文不能为空",
+      "msg.post_created": "文章创建成功",
+      "msg.post_updated": "文章更新成功",
+      "msg.post_deleted": "文章删除成功",
+      "msg.error_prefix": "错误：",
 
       // Toolbar
-      "toolbar.heading": "\u6807\u9898",
-      "toolbar.bold": "\u7c97\u4f53",
-      "toolbar.italic": "\u659c\u4f53",
-      "toolbar.quote": "\u5f15\u7528",
-      "toolbar.code": "\u4ee3\u7801",
-      "toolbar.link": "\u94fe\u63a5",
-      "toolbar.list": "\u5217\u8868",
-      "toolbar.ordered_list": "\u6709\u5e8f\u5217\u8868",
-      "toolbar.image": "\u56fe\u7247",
-      "toolbar.table": "\u8868\u683c",
+      "toolbar.heading": "标题",
+      "toolbar.bold": "粗体",
+      "toolbar.italic": "斜体",
+      "toolbar.quote": "引用",
+      "toolbar.code": "代码",
+      "toolbar.link": "链接",
+      "toolbar.list": "列表",
+      "toolbar.ordered_list": "有序列表",
+      "toolbar.image": "图片",
+      "toolbar.table": "表格",
 
       // Footer
-      "footer.open_source": "\u5f00\u6e90\u9879\u76ee",
-      "footer.powered_by": "\u57fa\u4e8e Cloudflare Workers + R2 \u9a71\u52a8",
+      "footer.open_source": "开源项目",
+      "footer.powered_by": "基于 Cloudflare Workers + R2 驱动",
 
       // Time ago
-      "time.just_now": "\u521a\u521a",
-      "time.m_ago": "\u5206\u949f\u524d",
-      "time.h_ago": "\u5c0f\u65f6\u524d",
-      "time.d_ago": "\u5929\u524d",
-      "time.w_ago": "\u5468\u524d",
-      "time.mo_ago": "\u4e2a\u6708\u524d",
-      "time.y_ago": "\u5e74\u524d"
+      "time.just_now": "刚刚",
+      "time.m_ago": "分钟前",
+      "time.h_ago": "小时前",
+      "time.d_ago": "天前",
+      "time.w_ago": "周前",
+      "time.mo_ago": "个月前",
+      "time.y_ago": "年前",
+
+      // Auth
+      "auth.login": "登录",
+      "auth.register": "注册",
+      "auth.logout": "退出登录",
+      "auth.no_account": "没有账号？去注册",
+      "auth.has_account": "已有账号？去登录",
+      "auth.fields_required": "用户名和密码不能为空",
+      "auth.processing": "处理中...",
+      "auth.login_success": "登录成功",
+      "auth.register_success": "注册成功",
+      "auth.logged_out": "已退出登录",
+
+      // Check-in
+      "checkin.checkin": "签到",
+      "checkin.done": "已签到",
+      "checkin.success": "签到成功！",
+      "checkin.already": "今天已签到",
+      "checkin.streak": "连续",
+
+      // Comments
+      "comments.title": "评论",
+      "comments.placeholder": "写下你的评论...",
+      "comments.submit": "发表评论",
+      "comments.empty": "还没有评论，来抢沙发吧！",
+      "comments.login_required": "请登录后再评论",
+      "comments.delete": "删除",
+      "comments.confirm_delete": "确定删除这条评论吗？",
+      "comments.posted": "评论发表成功！",
+      "comments.deleted": "评论已删除"
     }
   };
 

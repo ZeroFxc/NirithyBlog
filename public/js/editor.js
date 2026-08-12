@@ -36,9 +36,8 @@
       });
     }
 
-    if (editMode) {
-      loadPost(currentSlug);
-    }
+    // Check auth - require login
+    checkAuth();
 
     initToolbar();
     initPreview();
@@ -46,7 +45,58 @@
     initSave();
     initSlugAutogen();
     initLangListener();
+    initAuthListener();
   });
+
+  // ===== Check Auth =====
+  async function checkAuth() {
+    if (window.Auth) {
+      // Wait for Auth to finish initializing
+      if (Auth.ready) await Auth.ready();
+      if (!Auth.isLoggedIn()) {
+        // Not logged in - show login dialog
+        Auth.showLoginDialog();
+        MD3.showSnackbar(t("editor.login_required"));
+      } else {
+        // Logged in - load post if editing
+        if (editMode) {
+          loadPost(currentSlug);
+          verifyOwnership();
+        }
+      }
+    } else {
+      // No auth system - just load
+      if (editMode) {
+        loadPost(currentSlug);
+      }
+    }
+  }
+
+  // ===== Verify ownership for edit mode =====
+  async function verifyOwnership() {
+    try {
+      var data = await MD3.api("/posts/" + encodeURIComponent(currentSlug));
+      var post = data.post;
+      var user = Auth.getUser();
+      if (post && user && post.authorId !== user.id) {
+        MD3.showSnackbar(t("msg.error_prefix") + "You can only edit your own posts");
+        setTimeout(function () {
+          window.location.href = "/";
+        }, 2000);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // ===== Listen for auth changes =====
+  function initAuthListener() {
+    window.addEventListener("authChanged", function () {
+      if (!Auth.isLoggedIn()) {
+        window.location.href = "/";
+      }
+    });
+  }
 
   // ===== Listen for language change =====
   function initLangListener() {
